@@ -1,0 +1,10 @@
+name: merlin
+version: 0.1.0
+
+crystal: '>= 1.12.2'
+
+license: AGPLv3
+
+targets:
+  merlin:
+    main: src/merlin.cr
