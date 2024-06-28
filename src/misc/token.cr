@@ -1,21 +1,21 @@
 module Merlin
   record Token(IdentT),
-    _type : IdentT,
+    name : IdentT,
     pattern : Regex,
     greedy : Bool = false do
 
     def to_s
-      ":#{@_type}(\"#{@value}\")"
+      ":#{@name}(\"#{@value}\")"
     end
   end
 
   record MatchedToken(IdentT),
-    _type : IdentT,
+    name : IdentT,
     value : String,
     position : Position do
 
     def to_s
-      ":#{@_type}(\"#{@value}\") @ #{@position.to_s}"
+      ":#{@name}(\"#{@value}\") @ #{@position.to_s}"
     end
   end
 end

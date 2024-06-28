@@ -30,7 +30,6 @@ module Merlin
         unless context.nil?
           block = rule.block
           unless block.nil?
-            #context.merge(context_for_lr) unless context_for_lr.nil?
             unless context_for_lr.nil?
               context_for_lr.merge(context)
               context = context_for_lr
@@ -70,7 +69,7 @@ module Merlin
         computed_ignores)
 
       if context.nil?
-        Log.debug { "... :#{name} failed" }
+        #Log.debug { "... :#{name} failed" }
         return nil
       end
 

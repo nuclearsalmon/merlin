@@ -1,8 +1,12 @@
 module Merlin
   class ParserBuilder(IdentT, NodeT)
     @root : Group(IdentT, NodeT)? = nil
+
     @groups = Hash(IdentT, Group(IdentT, NodeT)).new
+    @groups_a = Array(Group(IdentT, NodeT)).new
+
     @tokens = Hash(IdentT, Token(IdentT)).new
+    @tokens_a = Array(Token(IdentT)).new
 
     def self.new(&)
       instance = self.class.new
@@ -16,7 +20,7 @@ module Merlin
         "Undefined root"
       ) if root.nil?
 
-      return Parser(IdentT, NodeT).new(root, @groups, @tokens)
+      return Parser(IdentT, NodeT).new(root, @groups_a, @tokens_a)
     end
 
     private def token(
@@ -32,10 +36,13 @@ module Merlin
         "duplicate token: :#{name}"
       ) if @tokens[name]?
 
-      @tokens[name] = Token(IdentT).new(
+      token = Token(IdentT).new(
         name,
-        Regex.new("\\A" + pattern.source),
+        Regex.new("\\A(?:#{ pattern.source })"),
         greedy)
+
+      @tokens_a << token
+      @tokens[name] = token
     end
 
     private def root(&) : Nil
@@ -60,7 +67,10 @@ module Merlin
 
       builder = GroupBuilder(IdentT, NodeT).new(name)
       with builder yield
-      @groups[name] = builder.build
+      group = builder.build
+
+      @groups_a << group
+      @groups[name] = group
     end
   end
 end

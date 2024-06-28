@@ -6,10 +6,9 @@ module Merlin::Tokenizer(IdentT)
       filename : String? = nil) : Array(MatchedToken(IdentT))
     tokens_found = Array(MatchedToken(IdentT)).new
     row, col = 1, 1
-    tokens = @tokens.values
 
     until str.empty?
-      token_matched : Bool = tokens.any? { |token|
+      token_matched : Bool = @tokens_a.any? { |token|
         mdata = token.pattern.match(str)
         next false if mdata.nil?  # failure to `any?`
 
@@ -20,22 +19,20 @@ module Merlin::Tokenizer(IdentT)
 
         # create token
         position = Position.new(row, col, filename)
-        token = MatchedToken(IdentT).new(token._type, value, position)
-        Log.debug { "Matched token :#{token._type}: \"#{value}\"" }
+        token = MatchedToken(IdentT).new(token.name, value, position)
         tokens_found << token
 
         # skip past match
         str = mdata.post_match
 
         # update position
-        value.each_char { |char|
-          if char == '\n'
-            row += 1
-            col = 1
-          else
-            col += 1
-          end
-        }
+        rows = value.split(/(?:\r?\n)/, remove_empty: false)
+        if rows.size == 1 && rows[0] == value
+          col += rows[0].size
+        else
+          row += rows.size - 1
+          col = rows.last.size + 1
+        end
 
         true  # success to `any?`
       }

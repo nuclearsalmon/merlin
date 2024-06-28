@@ -31,7 +31,7 @@ module Merlin
       @nodes.try(&.clear)
     end
 
-    private def drop_context(key : IdentT) : Nil
+    def drop_context(key : IdentT) : Nil
       @sub_contexts.try(&.delete(key))
     end
 
@@ -39,26 +39,18 @@ module Merlin
       @sub_contexts.try(&.clear)
     end
 
-    def drop(key : IdentT, index : Int32 = -1) : Nil
+    def drop(key : IdentT) : Nil
+      drop_context(key)
+    end
+
+    def drop(key : IdentT, index : Int32) : Nil
       context = self[key]?
       return if context.nil?
 
       if Util.upcase?(key)
-        if index == -1
-          context.drop_tokens
-        else
-          context.drop_token(index)
-        end
+        context.drop_token(index)
       else
-        if index == -1
-          context.drop_nodes
-        else
-          context.drop_node(index)
-        end
-      end
-
-      if index == -1
-        drop_context(key)
+        context.drop_node(index)
       end
     end
 
@@ -102,7 +94,7 @@ module Merlin
         if (sub_contexts = @sub_contexts).nil?
           @sub_contexts = from_sub_contexts
         else
-          sub_contexts.merge(from_sub_contexts)
+          sub_contexts.merge!(from_sub_contexts)
         end
       end
 

@@ -1,10 +1,11 @@
 module Merlin
   module ContextTemplate::Querying(IdentT, NodeT)
     def []?(key : IdentT) : Context(IdentT, NodeT)?
-      if key == @name
+      context = @sub_contexts.try(&.[key]?)
+      if context.nil? && key == @name
         self
       else
-        @sub_contexts.try(&.[key]?)
+        context
       end
     end
 

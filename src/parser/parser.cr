@@ -10,7 +10,9 @@ module Merlin
 
     protected getter root : Group(IdentT, NodeT)
     protected getter groups : Hash(IdentT, Group(IdentT, NodeT))
+    protected getter groups_a : Array(Group(IdentT, NodeT))
     protected getter tokens : Hash(IdentT, Token(IdentT))
+    protected getter tokens_a : Array(Token(IdentT))
 
     property parsing_position : Int32 = 0
 
@@ -30,8 +32,14 @@ module Merlin
 
     def initialize(
         @root : Group(IdentT, NodeT),
-        @groups : Hash(IdentT, Group(IdentT, NodeT)),
-        @tokens : Hash(IdentT, Token(IdentT)))
+        @groups_a : Array(Group(IdentT, NodeT)),
+        @tokens_a : Array(Token(IdentT)))
+      @groups = Hash(IdentT, Group(IdentT, NodeT)).new
+      @groups_a.each { |group| @groups[group.name] = group }
+
+      @tokens = Hash(IdentT, Token(IdentT)).new
+      @tokens_a.each { |token| @tokens[token.name] = token }
+
       validate_references_existance
       detect_and_fix_left_recursive_rules
       detect_unused_tokens
@@ -93,7 +101,7 @@ module Merlin
       loop do
         token = @parsing_tokens[@parsing_position]?
         @parsing_position += 1
-        if token.nil? || !(computed_ignores.includes?(token._type))
+        if token.nil? || !(computed_ignores.includes?(token.name))
           return token
         end
       end
@@ -106,7 +114,7 @@ module Merlin
       initial_parsing_position = @parsing_position
       token = next_token(computed_ignores)
 
-      if token.nil? || token._type != ident
+      if token.nil? || token.name != ident
         @parsing_position = initial_parsing_position
         return nil
       end
@@ -155,7 +163,7 @@ module Merlin
           # get the first token and check if it should be ignored
           token = @parsing_tokens[@parsing_position]?
           break if token.nil?
-          break unless computed_ignores.includes?(token._type)
+          break unless computed_ignores.includes?(token.name)
           @parsing_position += 1
         else
           save_to_cache(ident, context, before_parsing_position)
