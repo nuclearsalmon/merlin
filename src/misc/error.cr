@@ -26,7 +26,7 @@ module Merlin::Error
         position : Position)
       super(
         "Unexpected character:\n" +
-        "'#{character}' @ #{position}")
+        "'#{character}' @ #{position.to_s}")
     end
   end
 end
