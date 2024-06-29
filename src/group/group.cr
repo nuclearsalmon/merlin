@@ -37,7 +37,7 @@ module Merlin
 
             Log.debug {
               "Executing block for rule " +
-              "#{rule.pattern}@#{@name} ..."
+              "#{rule.pattern}@:#{@name} ..."
             }
             block.call(context)
           end
@@ -69,7 +69,7 @@ module Merlin
         computed_ignores)
 
       if context.nil?
-        #Log.debug { "... :#{name} failed" }
+        Log.debug { "... :#{name} failed" }
         return nil
       end
 

@@ -16,7 +16,7 @@ module Merlin
         parser : Parser(IdentT, NodeT),
         computed_ignores : Array(IdentT)) : Context(IdentT, NodeT)?
       if parser.not_enough_tokens?(@pattern.size)
-        Log.debug { "Skipping rule #{@pattern}, not enough tokens." }
+        #Log.debug { "Skipping rule #{@pattern}, not enough tokens." }
         return nil
       end
 

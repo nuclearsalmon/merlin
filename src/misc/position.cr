@@ -36,6 +36,13 @@ module Merlin
       @col = -1
     end
 
+    def clone(
+        row : Int32 = @row,
+        col : Int32 = @col,
+        filename : String? = @filename) : self
+      self.class.new(row, col, filename)
+    end
+
     def to_s
       filename = @filename
       if filename.nil? || filename == ""
