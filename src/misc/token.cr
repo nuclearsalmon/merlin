@@ -5,7 +5,7 @@ module Merlin
     greedy : Bool = false do
 
     def to_s
-      ":#{@name}(\"#{@value}\")"
+      ":#{@name}"
     end
   end
 
@@ -15,7 +15,7 @@ module Merlin
     position : Position do
 
     def to_s
-      ":#{@name}(\"#{@value}\") @ #{@position.to_s}"
+      "#{@name}(#{@value.inspect}) @ #{@position.to_s}"
     end
   end
 end

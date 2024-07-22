@@ -1,5 +1,7 @@
 module Merlin
   struct Position
+    include Comparable(Position)
+
     getter filename : String?
     getter row : Int32
     getter col : Int32
@@ -46,9 +48,25 @@ module Merlin
     def to_s
       filename = @filename
       if filename.nil? || filename == ""
-        "<Row #{ @row }, Column #{ @col }>"
+        "<#{ @row }:#{ @col }>"
       else
-        "<(Row #{ @row }, Column #{ @col }) in \"#{ filename }\">"
+        "<#{ @row }:#{ @col } in \"#{ filename }\">"
+      end
+    end
+
+    def <=>(other : Position)
+      if self.row == other.row
+        if self.col == other.col
+          0
+        elsif self.col < other.col
+          -1
+        else
+          1
+        end
+      elsif self.row < other.row
+        -1
+      else
+        1
       end
     end
   end
