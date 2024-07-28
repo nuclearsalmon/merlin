@@ -90,7 +90,7 @@ class Merlin::Context(IdentT, NodeT)
     _nodes.first
   end
 
-  private def position?(lowest : Bool = true) : Position?
+  protected def position?(lowest : Bool = true) : Position?
     position = nil
 
     @tokens.try(&.each { |token|
@@ -128,7 +128,7 @@ class Merlin::Context(IdentT, NodeT)
     position
   end
 
-  private def position(lowest : Bool = true) : Position
+  protected def position(lowest : Bool = true) : Position
     position = position?(lowest)
     if position.nil?
       if empty?

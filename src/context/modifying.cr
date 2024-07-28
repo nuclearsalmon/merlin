@@ -10,9 +10,9 @@ class Merlin::Context(IdentT, NodeT)
     @name = name
   end
 
-  protected def drop_token(index : Int32) : Nil
+  protected def drop_token(index : Int32) : MatchedToken(IdentT)?
     if !((tokens = @tokens).nil?) && index < tokens.size
-      tokens.delete_at(index)
+      return tokens.delete_at(index)
     end
   end
 
@@ -20,9 +20,9 @@ class Merlin::Context(IdentT, NodeT)
     @tokens.try(&.clear)
   end
 
-  protected def drop_node(index : Int32) : Nil
+  protected def drop_node(index : Int32) : NodeT?
     if !((nodes = @nodes).nil?) && index < nodes.size
-      nodes.delete_at(index)
+      return nodes.delete_at(index)
     end
   end
 
@@ -30,7 +30,7 @@ class Merlin::Context(IdentT, NodeT)
     @nodes.try(&.clear)
   end
 
-  def drop_context(key : IdentT) : Nil
+  def drop_context(key : IdentT) : Context(IdentT, NodeT)?
     @sub_contexts.try(&.delete(key))
   end
 
@@ -38,17 +38,17 @@ class Merlin::Context(IdentT, NodeT)
     @sub_contexts.try(&.clear)
   end
 
-  def drop(key : IdentT) : Nil
+  def drop(key : IdentT) : Context(IdentT, NodeT)?
     drop_context(key)
   end
 
-  def drop(key : IdentT, index : Int32) : Nil
+  def drop(key : IdentT, index : Int32) : (NodeT | MatchedToken(IdentT))?
     context = self[key]?
     return if context.nil?
     if Util.upcase?(key)
-      context.drop_token(index)
+      return context.drop_token(index)
     else
-      context.drop_node(index)
+      return context.drop_node(index)
     end
   end
 
@@ -74,9 +74,41 @@ class Merlin::Context(IdentT, NodeT)
     unsafe_merge(context)
   end
 
-  def become(data : NodeT | MatchedToken(IdentT)) : Nil
+  def become(value : NodeT | MatchedToken(IdentT)) : Nil
     clear
-    add(data)
+    add(value)
+  end
+
+  def to_subcontext(key : IdentT) : Nil
+    if Util.upcase?(key)
+      tokens = @tokens
+      return if tokens.nil? || tokens.size <= 0
+
+      token = tokens.delete_at(0)
+      sub_context = Context(IdentT, NodeT).new(
+        name: key,
+        tokens: [token])
+    else
+      nodes = @nodes
+      return if nodes.nil? || nodes.size <= 0
+
+      node = nodes.delete_at(0)
+      sub_context = Context(IdentT, NodeT).new(
+        name: key,
+        nodes: [node])
+    end
+  end
+
+  def rename(
+      from_key : IdentT,
+      to_key : IdentT) : Nil
+    sub_contexts = @sub_contexts
+    return if sub_contexts.nil?
+
+    context = sub_contexts.delete(from_key)
+    return if context.nil?
+
+    sub_contexts[to_key] = context
   end
 
   private def internal_merge(
