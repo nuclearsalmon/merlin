@@ -55,18 +55,10 @@ module Merlin
     end
 
     def <=>(other : Position)
-      if self.row == other.row
-        if self.col == other.col
-          0
-        elsif self.col < other.col
-          -1
-        else
-          1
-        end
-      elsif self.row < other.row
-        -1
+      if (comp = self.row <=> other.row) != 0
+        comp
       else
-        1
+        self.filename == other.filename
       end
     end
   end

@@ -54,7 +54,7 @@ class Merlin::Context(IdentT, NodeT)
       "#{self.pretty_inspect}.")
   end
 
-  def empty? : ::Bool
+  def empty? : Bool
     return false unless (tokens = @tokens).nil? || tokens.empty?
     return false unless (nodes = @nodes).nil? || nodes.empty?
     return false unless (sub_contexts = @sub_contexts).nil? || sub_contexts.empty?

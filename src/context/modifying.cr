@@ -56,7 +56,7 @@ class Merlin::Context(IdentT, NodeT)
     @sub_contexts.try(&.each { |key, context|
       drop_context(key)
       context.flatten
-      unsafe_merge(context)
+      merge(context, clone: false)
     })
   end
 
@@ -64,14 +64,14 @@ class Merlin::Context(IdentT, NodeT)
     context = @sub_contexts.try(&.[key]?)
     return if context.nil?
     drop_context(key)
-    unsafe_merge(context)
+    merge(context, clone: false)
   end
 
   def become(key : IdentT) : Nil
     context = @sub_contexts.try(&.[key]?)
     return if context.nil?
     clear
-    unsafe_merge(context)
+    merge(context, clone: false)
   end
 
   def become(value : NodeT | MatchedToken(IdentT)) : Nil
@@ -111,11 +111,11 @@ class Merlin::Context(IdentT, NodeT)
     sub_contexts[to_key] = context
   end
 
-  private def internal_merge(
+  def merge(
       from : Context(IdentT, NodeT),
-      safe : ::Bool) : Nil
+      clone : Bool = true) : Nil
     unless (from_sub_contexts = from.@sub_contexts).nil? || from_sub_contexts.empty?
-      if safe
+      if clone
         from_sub_contexts = from_sub_contexts.clone
       end
       if (sub_contexts = @sub_contexts).nil?
@@ -127,7 +127,7 @@ class Merlin::Context(IdentT, NodeT)
 
     unless (from_nodes = from.@nodes).nil? || from_nodes.empty?
       if (nodes = @nodes).nil?
-        @nodes = safe ? from_nodes.dup : from_nodes
+        @nodes = clone ? from_nodes.dup : from_nodes
       else
         nodes.concat(from_nodes)
       end
@@ -135,21 +135,15 @@ class Merlin::Context(IdentT, NodeT)
 
     unless (from_tokens = from.@tokens).nil? || from_tokens.empty?
       if (tokens = @tokens).nil?
-        @tokens = safe ? from_tokens.dup : from_tokens
+        @tokens = clone ? from_tokens.dup : from_tokens
       else
         tokens.concat(from_tokens)
       end
     end
   end
 
-  # safe merge, will clone and duplicate
-  def merge(from : Context(IdentT, NodeT)) : Nil
-    internal_merge(from, true)
-  end
-
-  # unsafe merge, will NOT clone and duplicate
-  def unsafe_merge(from : Context(IdentT, NodeT)) : Nil
-    internal_merge(from, false)
+  def unsafe_merge(from : Context(IdentT, NodeT))
+    merge(from, clone: false)
   end
 
   def add(value : NodeT) : Nil
@@ -182,7 +176,7 @@ class Merlin::Context(IdentT, NodeT)
       if sub_context.nil?
         sub_contexts[key] = value
       else
-        sub_context.unsafe_merge(value)
+        sub_context.merge(value, clone: false)
       end
     end
   end
