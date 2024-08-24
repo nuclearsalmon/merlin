@@ -9,9 +9,18 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def [](key : IdentT) : Context(IdentT, NodeT)
-    self.[]?(key) || raise Error::SyntaxFault.new(
+    node = self.[]?(key)
+    return node unless node.nil?
+
+    sub_contexts = @sub_contexts
+    raise Error::ASTFault.new(
       "Expected subcontext :#{key} for :#{@name} " +
-      "not found. #{self.pretty_inspect}.")
+      "not found. " +
+      ((sub_contexts.nil? || sub_contexts.empty?) ?
+       ("(#{@name} has no subcontexts. If this rule is a " +
+        "single pattern, use the main context)") :
+       "") +
+      "\n#{self.pretty_inspect}.")
   end
 
   def node?(index : Int32 = 0) : NodeT?
@@ -19,7 +28,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def node(index : Int32 = 0) : NodeT
-    node?(index) || raise Error::SyntaxFault.new(
+    node?(index) || raise Error::ASTFault.new(
       "Expected node for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -29,7 +38,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def nodes : Array(NodeT)
-    nodes? || raise Error::SyntaxFault.new(
+    nodes? || raise Error::ASTFault.new(
       "Expected nodes for :#{@name} not found.
       #{self.pretty_inspect}.")
   end
@@ -39,7 +48,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def token(index : Int32 = 0) : MatchedToken(IdentT)
-    token?(index) || raise Error::SyntaxFault.new(
+    token?(index) || raise Error::ASTFault.new(
       "Expected token for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -49,7 +58,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def tokens : Array(MatchedToken(IdentT))
-    tokens? || raise Error::SyntaxFault.new(
+    tokens? || raise Error::ASTFault.new(
       "Expected tokens for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -68,22 +77,22 @@ class Merlin::Context(IdentT, NodeT)
     _sub_contexts = @sub_contexts
 
     unless _tokens.nil? || _tokens.empty?
-      raise Error::SyntaxFault.new(
+      raise Error::ASTFault.new(
         "Root must return no tokens. #{pretty_inspect}")
     end
 
     unless _sub_contexts.nil? || _sub_contexts.empty?
-      raise Error::SyntaxFault.new(
+      raise Error::ASTFault.new(
         "Root must return no subcontexts. #{pretty_inspect}")
     end
 
     if _nodes.nil? || _nodes.size < 1
-      raise Error::SyntaxFault.new(
+      raise Error::ASTFault.new(
         "Root returned no Nodes. #{pretty_inspect}")
     end
 
     if _nodes.size > 1
-      raise Error::SyntaxFault.new(
+      raise Error::ASTFault.new(
         "Root returned more than one Node. #{pretty_inspect}")
     end
 
@@ -91,13 +100,13 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   protected def position?(lowest : Bool = true) : Position?
-    position = nil
+    position : Position? = nil
 
     @tokens.try(&.each { |token|
       other_position = token.position
       if (position.nil? ||
-          (lowest && other_position < position) ||
-          (!lowest && other_position > position))
+          (lowest && (other_position < position)) ||
+          (!lowest && (other_position > position)))
         position = other_position
       end
     })
@@ -105,8 +114,8 @@ class Merlin::Context(IdentT, NodeT)
     @nodes.try(&.each { |node|
       other_position = node.position
       if (position.nil? ||
-          (lowest && other_position < position) ||
-          (!lowest && other_position > position))
+          (lowest && (other_position < position)) ||
+          (!lowest && (other_position > position)))
         position = other_position
       end
     })
@@ -118,8 +127,8 @@ class Merlin::Context(IdentT, NodeT)
         other_position = sub_context.position?(lowest)
         next if other_position.nil?
         if (position.nil? ||
-            (lowest && other_position < position) ||
-            (!lowest && other_position > position))
+            (lowest && (other_position < position)) ||
+            (!lowest && (other_position > position)))
           position = other_position
         end
       }
@@ -132,11 +141,11 @@ class Merlin::Context(IdentT, NodeT)
     position = position?(lowest)
     if position.nil?
       if empty?
-        raise Error::SyntaxFault.new(
+        raise Error::ASTFault.new(
           "Could not find a context position, " +
           "because it is empty.")
       else
-        raise Error::SyntaxFault.new(
+        raise Error::ASTFault.new(
           "Could not find a context position, " +
           "yet context is not empty.")
       end

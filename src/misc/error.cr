@@ -15,6 +15,17 @@ module Merlin::Error
     end
   end
 
+  class ASTFault < Severe
+    def initialize(
+        message : String? = nil,
+        cause : Exception? = nil)
+      new_message = (
+        "An error occured when building AST." +
+        (message.nil? ? "" : " #{message}"))
+      super(new_message, cause)
+    end
+  end
+
   # a recoverable input error - not a fault in the parser
   class BadInput < Exception
   end

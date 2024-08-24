@@ -88,6 +88,7 @@ class Merlin::Context(IdentT, NodeT)
       sub_context = Context(IdentT, NodeT).new(
         name: key,
         tokens: [token])
+      unsafe_add(key, sub_context)
     else
       nodes = @nodes
       return if nodes.nil? || nodes.size <= 0
@@ -96,6 +97,7 @@ class Merlin::Context(IdentT, NodeT)
       sub_context = Context(IdentT, NodeT).new(
         name: key,
         nodes: [node])
+      unsafe_add(key, sub_context)
     end
   end
 

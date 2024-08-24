@@ -58,7 +58,13 @@ module Merlin
       if (comp = self.row <=> other.row) != 0
         comp
       else
-        self.filename == other.filename
+        self_filename = self.filename
+        self_filename = "" if self_filename.nil?
+
+        other_filename = other.filename
+        other_filename = "" if other_filename.nil?
+
+        self_filename <=> other_filename
       end
     end
   end
