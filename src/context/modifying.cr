@@ -1,11 +1,11 @@
-class Merlin::Context(IdentT, NodeT)
+private class Merlin::Context(IdentT, NodeT)
   def clear : Nil
     @nodes.try(&.clear)
     @tokens.try(&.clear)
     @sub_contexts.try(&.clear)
   end
 
-  def reset(name : IdentT) : Nil
+  def reset(name : IdentT?) : Nil
     clear
     @name = name
   end
@@ -30,7 +30,7 @@ class Merlin::Context(IdentT, NodeT)
     @nodes.try(&.clear)
   end
 
-  def drop_context(key : IdentT) : Context(IdentT, NodeT)?
+  def drop_context(key : IdentT?) : Context(IdentT, NodeT)?
     @sub_contexts.try(&.delete(key))
   end
 
@@ -38,11 +38,11 @@ class Merlin::Context(IdentT, NodeT)
     @sub_contexts.try(&.clear)
   end
 
-  def drop(key : IdentT) : Context(IdentT, NodeT)?
+  def drop(key : IdentT?) : Context(IdentT, NodeT)?
     drop_context(key)
   end
 
-  def drop(key : IdentT, index : Int32) : (NodeT | MatchedToken(IdentT))?
+  def drop(key : IdentT?, index : Int32) : (NodeT | MatchedToken(IdentT))?
     context = self[key]?
     return if context.nil?
     if Util.upcase?(key)
@@ -60,14 +60,14 @@ class Merlin::Context(IdentT, NodeT)
     })
   end
 
-  def absorb(key : IdentT) : Nil
+  def absorb(key : IdentT?) : Nil
     context = @sub_contexts.try(&.[key]?)
     return if context.nil?
     drop_context(key)
     merge(context, clone: false)
   end
 
-  def become(key : IdentT) : Nil
+  def become(key : IdentT?) : Nil
     context = @sub_contexts.try(&.[key]?)
     return if context.nil?
     clear
@@ -79,7 +79,7 @@ class Merlin::Context(IdentT, NodeT)
     add(value)
   end
 
-  def to_subcontext(key : IdentT) : Nil
+  def to_subcontext(key : IdentT?) : Nil
     if Util.upcase?(key)
       tokens = @tokens
       return if tokens.nil? || tokens.size <= 0
@@ -102,8 +102,8 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def rename(
-      from_key : IdentT,
-      to_key : IdentT) : Nil
+      from_key : IdentT?,
+      to_key : IdentT?) : Nil
     sub_contexts = @sub_contexts
     return if sub_contexts.nil?
 
@@ -166,7 +166,7 @@ class Merlin::Context(IdentT, NodeT)
 
   # unsafe add, will NOT clone and duplicate
   def unsafe_add(
-      key : IdentT,
+      key : IdentT?,
       value : Context(IdentT, NodeT)) : Nil
     sub_contexts = @sub_contexts
     if sub_contexts.nil?
@@ -184,7 +184,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def add(
-      key : IdentT,
+      key : IdentT?,
       value : \
         NodeT | Array(NodeT) | \
         MatchedToken(IdentT) | Array(MatchedToken(IdentT))) : Nil

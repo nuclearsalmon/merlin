@@ -1,12 +1,19 @@
 module Merlin::Error
   # an unrecoverable fault
-  abstract class Severe < Exception
+  class Severe < Exception
+    def initialize(
+      message : String,
+      *nargs,
+      **kwargs
+    )
+      super(message, *nargs, **kwargs)
+    end
   end
 
   # a syntax building fault
   class SyntaxFault < Severe
     def initialize(
-        message : String? = nil,
+        message : String,
         cause : Exception? = nil)
       new_message = (
         "An error occured when building syntax." +
@@ -17,7 +24,7 @@ module Merlin::Error
 
   class ASTFault < Severe
     def initialize(
-        message : String? = nil,
+        message : String,
         cause : Exception? = nil)
       new_message = (
         "An error occured when building AST." +
@@ -28,6 +35,13 @@ module Merlin::Error
 
   # a recoverable input error - not a fault in the parser
   class BadInput < Exception
+    def initialize(
+      message : String,
+      *nargs,
+      **kwargs
+    )
+      super(message, *nargs, **kwargs)
+    end
   end
 
   # unexpected symbol when parsing

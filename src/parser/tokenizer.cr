@@ -8,7 +8,7 @@ module Merlin::Tokenizer(IdentT)
     row, col = 1, 1
 
     until str.empty?
-      token_matched : Bool = @tokens_a.any? { |token|
+      token_matched : Bool = @tokens.values.any? { |token|
         mdata = token.pattern.match(str)
         next false if mdata.nil?  # failure to `any?`
 

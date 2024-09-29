@@ -11,6 +11,10 @@ require "./misc/rule"
 require "./group/group"
 require "./group/builder"
 
+require "./parser/cache"
+require "./parser/directive"
+require "./parser/tokenizer"
+require "./parser/validator"
 require "./parser/parser"
 require "./parser/builder"
 

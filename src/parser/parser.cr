@@ -1,6 +1,3 @@
-require "./tokenizer"
-require "./validator"
-
 module Merlin
   class Parser(IdentT, NodeT)
     include Tokenizer(IdentT)
@@ -8,58 +5,49 @@ module Merlin
 
     property reference_recursion_limit : Int32 = 1024
 
-    protected getter root : Group(IdentT, NodeT)
-    protected getter groups : Hash(IdentT, Group(IdentT, NodeT))
-    protected getter groups_a : Array(Group(IdentT, NodeT))
-    protected getter tokens : Hash(IdentT, Token(IdentT))
-    protected getter tokens_a : Array(Token(IdentT))
+    # parser configuration
+    # ---
 
-    property parsing_position : Int32 = 0
+    @root : Group(IdentT, NodeT)
+    @groups : Hash(IdentT, Group(IdentT, NodeT))
+    @tokens : Hash(IdentT, Token(IdentT))
 
-    @parsing_tokens : \
-      Array(MatchedToken(IdentT)) = \
-      Array(MatchedToken(IdentT)).new
+    # parsing state
+    # ---
 
-    @parsing_group_cache = \
-      Hash(
-        Int32,                       # start index
-        Hash(
-          IdentT,                    # identifier
-          Tuple(
-            Context(IdentT, NodeT),  # content
-            Int32                    # end offset
-      ))).new
+    @parsing_position : Int32 = 0
+    @parsing_tokens = Array(MatchedToken(IdentT)).new
+    @parsing_context : Context(IdentT, NodeT)? = nil
+    @parsing_queue = Array(Directive(IdentT, NodeT)).new
+
+    # group cache
+    @cache = Cache(IdentT, NodeT).new
 
     def initialize(
-        @root : Group(IdentT, NodeT),
-        @groups_a : Array(Group(IdentT, NodeT)),
-        @tokens_a : Array(Token(IdentT)))
-      @groups = Hash(IdentT, Group(IdentT, NodeT)).new
-      @groups_a.each { |group| @groups[group.name] = group }
-
+      @root : Group(IdentT, NodeT),
+      @groups = Hash(IdentT, Group(IdentT, NodeT)).new,
       @tokens = Hash(IdentT, Token(IdentT)).new
-      @tokens_a.each { |token| @tokens[token.name] = token }
-
-      validate_references_existance
-      detect_and_fix_left_recursive_rules
-      detect_unused_tokens
-      detect_unused_groups
+    )
+      #validate_references_existance
+      #detect_and_fix_left_recursive_rules
+      #detect_unused_tokens
+      #detect_unused_groups
     end
 
-    def parse(@parsing_tokens : Array(MatchedToken)) : NodeT
+    def parse(@parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
       # clear before parsing
       @parsing_position = 0
-      @parsing_group_cache.clear()
+      @cache.clear()
+
+      # set initial marker
+      @parsing_queue << Directive(IdentT, NodeT).new(0, @root)
 
       # parse
-      result_context = @root.parse(self)
+      result_node = do_parse
 
-      if result_context.nil?
-        raise Error::BadInput.new(
-          "Parsing failed to match anything.")
+      if result_node.nil?
+        raise Error::BadInput.new("Parsing failed to match anything.")
       end
-
-      result_node : NodeT = result_context.result
 
       # verify that every token was consumed
       position = @parsing_position
@@ -73,118 +61,166 @@ module Merlin
           @parsing_tokens[position].position)
       end
 
-      return result_node
+      # done parsing
+      result_node
     end
 
-    def compute_ignores(
-        ignores : Array(IdentT)?,
-        noignores : Array(IdentT)?) : Array(IdentT)
-      final_ignores = Array(IdentT).new
-      root_ignores = @root.ignores
+    private def do_parse : NodeT?
+      loop do
+        step = @parsing_queue.size
+        padding = "#{step}#{" " * step}"
 
-      if noignores.nil?
-        final_ignores.concat(root_ignores) unless root_ignores.nil?
-      elsif noignores.size > 0
-        unless root_ignores.nil?
-          root_ignores.each { |ig_sym|
-            next if !(noignores.nil?) && noignores.includes?(ig_sym)
-            final_ignores << ig_sym
-          }
+        # get directive target
+        directive = @parsing_queue[-1]
+        target_ident = directive.target_ident
+        computed_ignores = directive.group.computed_ignores
+
+        puts "#{padding}trying #{directive.target_ident}"
+
+        # handle target
+        if Util.upcase?(target_ident)
+          # token
+          token_directive = @tokens[target_ident]
+          token = expect_token(token_directive, computed_ignores)
+
+          if token.nil?
+            puts "#{padding}failed #{directive.group.name}"
+            # remove as we're done with this directive
+            @parsing_queue.pop()
+            @parsing_position = directive.started_at
+
+            @parsing_queue.empty? ? break : next
+          else
+            # success, add to context
+            context = directive.context
+            if directive.pattern.size > 1
+              context.add(target_ident, token)
+            else
+              context.add(token)
+            end
+          end
+        else
+          # group
+          group_context = expect_group(target_ident)
+
+          if group_context.nil?
+            next
+          else
+            context = directive.context
+            if directive.pattern.size > 1
+              context.unsafe_add(target_ident, group_context)
+            else
+              context.unsafe_merge(group_context)
+            end
+          end
+        end
+
+        # assign next target
+        unless directive.done?
+          directive.advance
+        end
+        if directive.done?
+          # handle trailing ignores
+          trailing_ignores = directive.group.trailing_ignores
+          unless trailing_ignores.nil?
+            next_token(trailing_ignores)
+            # step back so next call can get the not-ignored token
+            @parsing_position -= 1
+          end
+
+          # remove as we're done with this directive
+          @parsing_queue.pop()
+
+          # execute block on context
+          block = directive.rule.block
+          block.call(directive.context) unless block.nil?
+
+          # save to cache
+          @cache.store(
+            ident:            directive.name,
+            context:          directive.context,
+            start_position:   directive.started_at,
+            parsing_position: @parsing_position
+          )
+        end
+
+        pp @parsing_queue
+
+        if @parsing_queue.empty?
+          puts "#{padding}empty"
+          break directive.context?.try(&.node)
         end
       end
-      final_ignores.concat(ignores) unless ignores.nil?
-
-      return final_ignores
     end
 
-    def next_token(computed_ignores : Array(IdentT)) : MatchedToken(IdentT)?
+    private def next_token(
+      computed_ignores : Array(IdentT)?
+    ) : MatchedToken(IdentT)?
       loop do
         token = @parsing_tokens[@parsing_position]?
         @parsing_position += 1
-        if token.nil? || !(computed_ignores.includes?(token.name))
+        if token.nil? || computed_ignores.nil? || !(computed_ignores.includes?(token.name))
           return token
         end
       end
       return nil
     end
 
-    def expect_token(
-        ident : IdentT,
-        computed_ignores : Array(IdentT)) : MatchedToken(IdentT)?
+    private def expect_token(
+      token_directive : Token(IdentT),
+      computed_ignores : Array(IdentT)?
+    ) : MatchedToken(IdentT)?
       initial_parsing_position = @parsing_position
       token = next_token(computed_ignores)
 
-      if token.nil? || token.name != ident
-        @parsing_position = initial_parsing_position
-        return nil
-      end
-      return token
-    end
-
-    private def expect_cache(sym : IdentT) : Context(IdentT, NodeT)?
-      cache_data = @parsing_group_cache[@parsing_position]?.try(&.[sym]?)
-      return nil if cache_data.nil?
-
-      cached_context, cached_token_length = cache_data
-      @parsing_position += cached_token_length
-
-      return cached_context.clone
-    end
-
-    private def save_to_cache(
-        ident : IdentT,
-        context : Context(IdentT, NodeT),
-        start_position : Int32) : Nil
-      number_of_tokens = @parsing_position - start_position
-
-      cache_data = \
-        Tuple(Context(IdentT, NodeT), Int32) \
-        .new(context.clone, number_of_tokens)
-
-      (@parsing_group_cache[start_position] ||=
-        Hash(IdentT, Tuple(Context(IdentT, NodeT), Int32)).new) \
-        [ident] = cache_data
-    end
-
-    def expect_group(
-        ident : IdentT,
-        computed_ignores : Array(IdentT)) : Context(IdentT, NodeT)?
-      initial_parsing_position = @parsing_position
-
-      context = nil
-      loop do
-        # try the cache
-        context = expect_cache(ident)
-        break unless context.nil? # break if we got a result
-        # try parsing
-        before_parsing_position = @parsing_position
-        context = @groups[ident].parse(self)
-        if context.nil?
-          # get the first token and check if it should be ignored
-          token = @parsing_tokens[@parsing_position]?
-          break if token.nil?
-          break unless computed_ignores.includes?(token.name)
-          @parsing_position += 1
-        else
-          save_to_cache(ident, context, before_parsing_position)
-          break
+      # test if token matches expectation
+      if !(token.nil?) && token.name != token_directive.name
+        # failed, try to adapt
+        if !(token_directive.adaptive && token_directive.pattern.match(token.value))
+          # failed, reset position
+          @parsing_position = initial_parsing_position
+          return nil  # nothing matched
         end
       end
+      return token  # can be nil, a name-matched token, or an adapted token
+    end
 
-      if context.nil?
-        # reset position if there's no match
-        @parsing_position = initial_parsing_position
+    private def expect_cache(ident : IdentT) : Context(IdentT, NodeT)?
+      cached = @cache[@parsing_position, ident]
+
+      unless cached.nil?
+        @parsing_position += cached[:nr_of_tokens]
+        return cached[:context].clone
       end
-
-      return context
     end
 
-    def not_enough_tokens?(min_amount : Int32) : Bool
-      @parsing_tokens[@parsing_position..].size < min_amount
+    private def expect_group(ident : IdentT) : Context(IdentT, NodeT)?
+      # try the cache
+      cached_context = expect_cache(ident)
+
+      if cached_context.nil?
+        # increment for next step
+        next_directive = @parsing_queue[-1]
+        if next_directive.done?
+          @parsing_queue.pop()
+        else
+          next_directive.advance
+        end
+
+        # mark for parsing
+        @parsing_queue << Directive(IdentT, NodeT).new(
+          @parsing_position,
+          @groups[ident]
+        )
+      end
+      return cached_context
     end
 
-    def inspect_cache : String
-      @parsing_group_cache.pretty_inspect
-    end
+    # a a b -> (a) (a b) x
+    # a a b a a b -> ((a) (a b)) (a) (a b) x
+    # group :as
+    #   rule :as, :a, :b
+    #   rule :a
+    # end
   end
 end

@@ -2,7 +2,7 @@ module Merlin
   record Token(IdentT),
     name : IdentT,
     pattern : Regex,
-    greedy : Bool = false do
+    adaptive : Bool = false do
 
     def to_s
       ":#{@name}"

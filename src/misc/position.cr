@@ -48,9 +48,17 @@ module Merlin
     def to_s
       filename = @filename
       if filename.nil? || filename == ""
-        "<#{ @row }:#{ @col }>"
+        if row > -1 && col > -1
+          "<#{ @row }:#{ @col } from interpreted>"
+        else
+          "<interpreted>"
+        end
       else
-        "<#{ @row }:#{ @col } in \"#{ filename }\">"
+        if row > -1 && col > -1
+          "<#{ @row }:#{ @col } in \"#{ filename }\">"
+        else
+          "<\"#{ filename }\">"
+        end
       end
     end
 

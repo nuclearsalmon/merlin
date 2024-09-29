@@ -1,15 +1,15 @@
 module Merlin
   class ParserBuilder(IdentT, NodeT)
+    @root_ident : IdentT
     @root : Group(IdentT, NodeT)? = nil
-
-    @groups = Hash(IdentT, Group(IdentT, NodeT)).new
-    @groups_a = Array(Group(IdentT, NodeT)).new
-
+    @group_builders = Array(GroupBuilder(IdentT, NodeT)).new
     @tokens = Hash(IdentT, Token(IdentT)).new
-    @tokens_a = Array(Token(IdentT)).new
 
-    def self.new(&)
-      instance = self.class.new
+    def initialize(@root_ident : IdentT)
+    end
+
+    def self.new(root_ident : IdentT, &)
+      instance = self.class.new(root_ident)
       with instance yield instance
       instance
     end
@@ -20,13 +20,22 @@ module Merlin
         "Undefined root"
       ) if root.nil?
 
-      return Parser(IdentT, NodeT).new(root, @groups_a, @tokens_a)
+      # build groups
+      groups = Hash(IdentT, Group(IdentT, NodeT)).new
+      @group_builders.each { |builder|
+        group = builder.build(root)
+        groups[group.name] = group
+      }
+
+      # build parser
+      Parser(IdentT, NodeT).new(root, groups, @tokens)
     end
 
     private def token(
-        name : IdentT,
-        pattern : Regex,
-        greedy : Bool = false) : Nil
+      name : IdentT,
+      pattern : Regex,
+      adaptive : Bool = false
+    ) : Nil
       name_s = name.to_s
 
       raise Error::SyntaxFault.new(
@@ -39,9 +48,8 @@ module Merlin
       token = Token(IdentT).new(
         name,
         Regex.new("\\A(?:#{ pattern.source })"),
-        greedy)
+        adaptive)
 
-      @tokens_a << token
       @tokens[name] = token
     end
 
@@ -50,9 +58,9 @@ module Merlin
         "root already defined"
       ) unless @root.nil?
 
-      builder = GroupBuilder(IdentT, NodeT).new(:root)
+      builder = GroupBuilder(IdentT, NodeT).new(@root_ident)
       with builder yield
-      @root = builder.build
+      @root = builder.build(with_root: nil)
     end
 
     private def group(name : IdentT, &) : Nil
@@ -63,14 +71,11 @@ module Merlin
       ) unless Util.downcase?(name_s)
       raise Error::SyntaxFault.new(
         "duplicate group: :#{name}"
-      ) if @groups[name]?
+      ) if @group_builders.any? { |builder| builder.name == name }
 
       builder = GroupBuilder(IdentT, NodeT).new(name)
       with builder yield
-      group = builder.build
-
-      @groups_a << group
-      @groups[name] = group
+      @group_builders << builder  # build later
     end
   end
 end
