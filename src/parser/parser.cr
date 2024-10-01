@@ -28,10 +28,10 @@ module Merlin
       @groups = Hash(IdentT, Group(IdentT, NodeT)).new,
       @tokens = Hash(IdentT, Token(IdentT)).new
     )
-      #validate_references_existance
-      #detect_and_fix_left_recursive_rules
-      #detect_unused_tokens
-      #detect_unused_groups
+      validate_references_existance
+      detect_and_fix_left_recursive_rules
+      detect_unused_tokens
+      detect_unused_groups
     end
 
     def parse(@parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
@@ -84,73 +84,121 @@ module Merlin
           token = expect_token(token_directive, computed_ignores)
 
           if token.nil?
-            puts "#{padding}failed #{directive.group.name}"
-            # remove as we're done with this directive
-            @parsing_queue.pop()
-            @parsing_position = directive.started_at
+            puts "#{padding}failed #{directive.target_ident}"
+            directive.reset_context  # FIXME: this may break lr
+            #@parsing_queue.each{|e|puts e.to_s}
 
-            @parsing_queue.empty? ? break : next
+            # remove as we're done with this directive
+            # try next rule
+            directive.next_rule
+            puts "#{padding}next A: #{directive.to_s}"
+
+            # remove fails from queue
+            loop_directive = directive  # NOTE: reassigned to avoid a shotgun blast to ones own feet
+            break if (loop do
+              if loop_directive.done?
+                @parsing_queue.pop()
+
+                if @parsing_queue.empty?
+                  break true  # inner loop control
+                else
+                  loop_directive = @parsing_queue[-1]
+                  loop_directive.next_rule(error: false)
+                  puts "#{padding}next B: #{loop_directive.to_s}"
+                end
+              else
+                break false  # inner loop control
+              end
+            end)
+
+            puts "setting #{@parsing_position} to #{loop_directive.started_at}"
+            @parsing_position = loop_directive.started_at
+            next  # outer loop control
           else
             # success, add to context
-            context = directive.context
-            if directive.pattern.size > 1
-              context.add(target_ident, token)
-            else
-              context.add(token)
-            end
+            directive.add(target_ident, token)
+            directive.next_target
           end
         else
           # group
-          group_context = expect_group(target_ident)
+          cached_context = expect_cache(target_ident)
 
-          if group_context.nil?
+          puts "cached #{target_ident} returned #{cached_context.pretty_inspect}" if cached_context
+
+          if cached_context.nil?
+            directive.next_target  # ?
+            @parsing_queue << Directive(IdentT, NodeT).new(
+              @parsing_position,
+              @groups[target_ident]
+            )
             next
           else
-            context = directive.context
-            if directive.pattern.size > 1
-              context.unsafe_add(target_ident, group_context)
-            else
-              context.unsafe_merge(group_context)
-            end
+            puts "#{padding}matched #{target_ident}"
+
+            directive.add(
+              target_ident,
+              cached_context
+            )
+            directive.next_target
           end
         end
 
-        # assign next target
-        unless directive.done?
-          directive.advance
-        end
-        if directive.done?
-          # handle trailing ignores
-          trailing_ignores = directive.group.trailing_ignores
-          unless trailing_ignores.nil?
-            next_token(trailing_ignores)
-            # step back so next call can get the not-ignored token
-            @parsing_position -= 1
+        loop_directive = directive
+        while loop_directive.done?
+          puts "#{padding}matched #{loop_directive.name}"
+          if (q = @parsing_queue[-2..]?).nil?
+            puts @parsing_queue[-1].to_s
+          else
+            q.each{|e|puts e.to_s}
           end
+
+          # handle trailing ignored tokens
+          consume_trailing(directive.group.trailing_ignores)
+
+          # execute block on context
+          block = loop_directive.rule.block
+          block.call(loop_directive.context) unless block.nil?
+
+          # save to cache
+          @cache.store(
+            ident:            loop_directive.name,
+            context:          loop_directive.context,
+            start_position:   loop_directive.started_at,
+            parsing_position: @parsing_position
+          )
 
           # remove as we're done with this directive
           @parsing_queue.pop()
 
-          # execute block on context
-          block = directive.rule.block
-          block.call(directive.context) unless block.nil?
 
-          # save to cache
-          @cache.store(
-            ident:            directive.name,
-            context:          directive.context,
-            start_position:   directive.started_at,
-            parsing_position: @parsing_position
+          parent_directive = @parsing_queue[-1]?
+          break if parent_directive.nil?
+
+          # give to parent directive
+          parent_directive.add(
+            loop_directive.name,
+            loop_directive.context
           )
-        end
 
-        pp @parsing_queue
+          # assign next directive
+          loop_directive = parent_directive
+        end
 
         if @parsing_queue.empty?
-          puts "#{padding}empty"
-          break directive.context?.try(&.node)
+          break loop_directive.context?.try(&.result)
         end
       end
+    end
+
+    private def consume_trailing(
+      trailing_ignores : Array(IdentT)?
+    ) : Nil
+      return if trailing_ignores.nil?
+
+      # consume all
+      next_token(trailing_ignores)
+      # step back so next call can get the not-ignored token
+      @parsing_position -= 1
     end
 
     private def next_token(
@@ -192,28 +240,6 @@ module Merlin
         @parsing_position += cached[:nr_of_tokens]
         return cached[:context].clone
       end
-    end
-
-    private def expect_group(ident : IdentT) : Context(IdentT, NodeT)?
-      # try the cache
-      cached_context = expect_cache(ident)
-
-      if cached_context.nil?
-        # increment for next step
-        next_directive = @parsing_queue[-1]
-        if next_directive.done?
-          @parsing_queue.pop()
-        else
-          next_directive.advance
-        end
-
-        # mark for parsing
-        @parsing_queue << Directive(IdentT, NodeT).new(
-          @parsing_position,
-          @groups[ident]
-        )
-      end
-      return cached_context
     end
 
     # a a b -> (a) (a b) x

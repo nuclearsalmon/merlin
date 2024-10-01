@@ -70,7 +70,7 @@ private class Merlin::Context(IdentT, NodeT)
   def become(key : IdentT?) : Nil
     context = @sub_contexts.try(&.[key]?)
     return if context.nil?
-    clear
+    reset(key)
     merge(context, clone: false)
   end
 

@@ -95,11 +95,8 @@ module Merlin::ParserValidator(IdentT, NodeT)
         }
       }
 
-      ignores = group.ignores
-      syms.concat(ignores) unless ignores.nil?
-
-      noignores = group.noignores
-      syms.concat(noignores) unless noignores.nil?
+      computed_ignores = group.computed_ignores
+      syms.concat(computed_ignores) unless computed_ignores.nil?
 
       trailing_ignores = group.trailing_ignores
       syms.concat(trailing_ignores) unless trailing_ignores.nil?
