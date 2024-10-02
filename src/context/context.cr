@@ -20,10 +20,10 @@ private class Merlin::Context(IdentT, NodeT)
   end
 
   def copy_with(
-      name = @name,
-      nodes = @nodes,
-      tokens = @tokens,
-      sub_contexts = @sub_contexts)
+      name = @name.dup,
+      nodes = @nodes.dup,
+      tokens = @tokens.dup,
+      sub_contexts = @sub_contexts.clone)
     self.class.new(name, nodes, tokens, sub_contexts)
   end
 

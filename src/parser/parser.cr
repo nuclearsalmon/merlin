@@ -8,7 +8,7 @@ module Merlin
     # parser configuration
     # ---
 
-    @root : Group(IdentT, NodeT)
+    @root   : Group(IdentT, NodeT)
     @groups : Hash(IdentT, Group(IdentT, NodeT))
     @tokens : Hash(IdentT, Token(IdentT))
 
@@ -16,15 +16,12 @@ module Merlin
     # ---
 
     @parsing_position : Int32 = 0
-    @parsing_tokens = Array(MatchedToken(IdentT)).new
-    @parsing_context : Context(IdentT, NodeT)? = nil
-    @parsing_queue = Array(Directive(IdentT, NodeT)).new
-
-    # group cache
-    @cache = Cache(IdentT, NodeT).new
+    @parsing_tokens   = Array(MatchedToken(IdentT)).new
+    @parsing_queue    = Array(Directive(IdentT, NodeT)).new
+    @cache            = Cache(IdentT, NodeT).new
 
     def initialize(
-      @root : Group(IdentT, NodeT),
+      @root   : Group(IdentT, NodeT),
       @groups = Hash(IdentT, Group(IdentT, NodeT)).new,
       @tokens = Hash(IdentT, Token(IdentT)).new
     )
@@ -38,9 +35,14 @@ module Merlin
       # clear before parsing
       @parsing_position = 0
       @cache.clear()
+      @parsing_queue.clear()
 
       # set initial marker
-      @parsing_queue << Directive(IdentT, NodeT).new(0, @root)
+      @parsing_queue << Directive(IdentT, NodeT).new(
+        started_at: 0,
+        group:      @root,
+        lr:         false
+      )
 
       # parse
       result_node = do_parse
@@ -65,57 +67,70 @@ module Merlin
       result_node
     end
 
+    private def generate_log_padding
+      step = @parsing_queue.size
+      "#{step}#{" " * step}"
+    end
+
     private def do_parse : NodeT?
       loop do
-        step = @parsing_queue.size
-        padding = "#{step}#{" " * step}"
+        padding = generate_log_padding
 
         # get directive target
         directive = @parsing_queue[-1]
         target_ident = directive.target_ident
         computed_ignores = directive.group.computed_ignores
 
-        puts "#{padding}trying #{directive.target_ident}"
-
-        # handle target
+        # handle current directive target
         if Util.upcase?(target_ident)
           # token
           token_directive = @tokens[target_ident]
           token = expect_token(token_directive, computed_ignores)
 
           if token.nil?
-            puts "#{padding}failed #{directive.target_ident}"
+            puts "#{padding}failed :#{directive.target_ident}"
             directive.reset_context  # FIXME: this may break lr
             #@parsing_queue.each{|e|puts e.to_s}
 
             # remove as we're done with this directive
             # try next rule
             directive.next_rule
-            puts "#{padding}next A: #{directive.to_s}"
+            #puts "#{padding}next A: #{directive.to_s}"
 
             # remove fails from queue
-            loop_directive = directive  # NOTE: reassigned to avoid a shotgun blast to ones own feet
-            break if (loop do
-              if loop_directive.done?
+            skip = (loop do
+              if directive.done?
                 @parsing_queue.pop()
 
                 if @parsing_queue.empty?
-                  break true  # inner loop control
+                  return nil
                 else
-                  loop_directive = @parsing_queue[-1]
-                  loop_directive.next_rule(error: false)
-                  puts "#{padding}next B: #{loop_directive.to_s}"
+                  next_directive = @parsing_queue[-1]
+                  #puts "#{padding}dir     : #{directive.to_s}"
+                  #puts "#{padding}next_dir: #{next_directive.to_s}"
+                  if directive.lr? && next_directive.done?
+                    #puts "setting #{@parsing_position} to #{directive.started_at}"
+                    @parsing_position = directive.started_at
+
+                    directive = next_directive
+                    break false  # inner loop control
+                  else
+                    directive = next_directive
+                    directive.next_rule(error: false)
+                  end
                 end
               else
-                break false  # inner loop control
+                #puts "setting #{@parsing_position} to #{directive.started_at}"
+                @parsing_position = directive.started_at
+
+                break true  # inner loop control
               end
             end)
 
-            puts "setting #{@parsing_position} to #{loop_directive.started_at}"
-            @parsing_position = loop_directive.started_at
-            next  # outer loop control
+            next if skip
           else
             # success, add to context
+            puts "#{padding}matched :#{directive.target_ident}"
             directive.add(target_ident, token)
             directive.next_target
           end
@@ -123,17 +138,17 @@ module Merlin
           # group
           cached_context = expect_cache(target_ident)
 
-          puts "cached #{target_ident} returned #{cached_context.pretty_inspect}" if cached_context
-
           if cached_context.nil?
+            puts "#{padding}trying :#{directive.target_ident}"
             directive.next_target  # ?
             @parsing_queue << Directive(IdentT, NodeT).new(
-              @parsing_position,
-              @groups[target_ident]
+              started_at: @parsing_position,
+              group:      @groups[target_ident],
+              lr:         false
             )
             next
           else
-            puts "#{padding}matched #{target_ident}"
+            puts "#{padding}matched :#{target_ident} from cache: #{cached_context.pretty_inspect}"
 
             directive.add(
               target_ident,
@@ -143,49 +158,107 @@ module Merlin
           end
         end
 
-        loop_directive = directive
-        while loop_directive.done?
-          puts "#{padding}matched #{loop_directive.name}"
-          if (q = @parsing_queue[-2..]?).nil?
-            puts @parsing_queue[-1].to_s
-          else
-            q.each{|e|puts e.to_s}
-          end
+        # handle result
+        while directive.done?
+          puts "#{padding}matched :#{directive.name}"
+          #if (q = @parsing_queue[-2..]?).nil?
+          #  puts @parsing_queue[-1].to_s
+          #else
+          #  q.each{|e|puts e.to_s}
+          #end
+
+          #puts "==="
+          #puts directive.pretty_inspect
 
           # handle trailing ignored tokens
           consume_trailing(directive.group.trailing_ignores)
 
+          # check if parent is lr
+          parent_directive = @parsing_queue[-2]?
+          unless parent_directive.nil?
+            if parent_directive.have_tried_lr?
+              #puts "directive ctx: #{directive.context.pretty_inspect}"
+              #puts "directive ident: #{parent_directive.target_ident}"
+              #puts "parent_directive (before): #{parent_directive.pretty_inspect}"
+
+              # inject into parent
+              parent_context = parent_directive.context
+              parent_context.subcontext_self(
+                parent_directive.name.not_nil!
+              )
+              parent_context.merge(
+                directive.context
+              )
+
+              # replace context with parent context
+              directive.context = parent_context
+
+              # set store position
+              directive.store_at = parent_directive.started_at
+
+              #puts "parent_directive ctx (after): #{parent_directive.context.pretty_inspect}"
+              #puts "queue: #{@parsing_queue.pretty_inspect}"
+
+              # remove parent directive from queue
+              @parsing_queue.delete_at(-2)
+            end
+          end
+
           # execute block on context
-          block = loop_directive.rule.block
-          block.call(loop_directive.context) unless block.nil?
+          block = directive.rule.block
+          unless block.nil?
+            block.call(directive.context)
+            #puts "directive #{directive.name} after block call: #{directive.context.pretty_inspect}"
+          end
 
-          # save to cache
-          @cache.store(
-            ident:            loop_directive.name,
-            context:          loop_directive.context,
-            start_position:   loop_directive.started_at,
-            parsing_position: @parsing_position
-          )
+          #pp directive
 
-          # remove as we're done with this directive
-          @parsing_queue.pop()
+          if !directive.have_tried_lr? && directive.can_switch_to_lr?
+            # save to cache
+            # FIXME: should store? not sure. commenting it out fixes shit.
+            #@cache.store(
+            #  ident:            directive.name,
+            #  context:          directive.context.clone,  # safe
+            #  start_position:   directive.store_at,
+            #  parsing_position: @parsing_position
+            #)
 
+            # switch to lr
+            directive.have_tried_lr = true
+            @parsing_queue << Directive(IdentT, NodeT).new(
+              started_at: @parsing_position,
+              group:      directive.group,
+              lr:         true
+            )
 
-          parent_directive = @parsing_queue[-1]?
-          break if parent_directive.nil?
+            # stop result loop
+            break
+          else
+            # save to cache
+            @cache.store(
+              ident:            directive.name,
+              context:          directive.context,  # unsafe
+              start_position:   directive.store_at,
+              parsing_position: @parsing_position
+            )
 
-          # give to parent directive
-          parent_directive.add(
-            loop_directive.name,
-            loop_directive.context
-          )
+            # remove as we're done with this directive
+            @parsing_queue.pop()
 
-          # assign next directive
-          loop_directive = parent_directive
-        end
+            # check if there's a parent directive
+            if (parent_directive = @parsing_queue[-1]?).nil?
+              return directive.context.result
+            else
+              # give to parent directive
+              parent_directive.add(
+                directive.name,
+                directive.context
+              )
+            end
 
-        if @parsing_queue.empty?
-          break loop_directive.context?.try(&.result)
+            # assign next directive
+            directive = parent_directive
+          end
         end
       end
     end

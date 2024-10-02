@@ -88,7 +88,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
     groups.each { |group|
       syms = Array(IdentT).new
 
-      rules = group.rules.dup.tap(&.concat(group.lr_rules))
+      rules = group.rules.dup.concat(group.lr_rules)
       rules.each { |rule|
         rule.pattern.each { |sym|
           syms << sym if Util.upcase?(sym.to_s)
@@ -111,7 +111,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
   private def detect_unused_groups : Nil
     unused : Array(IdentT) = @groups.map { |sym, _| sym }
     @groups.each { |_, group|
-      rules = group.rules.tap(&.dup).tap(&.concat(group.lr_rules))
+      rules = group.rules.dup.concat(group.lr_rules)
       rules.each { |rule|
         rule.pattern.each { |sym|
           unused.delete(sym) if Util.downcase?(sym.to_s)

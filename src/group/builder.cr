@@ -57,15 +57,31 @@ module Merlin
           "Rules must not have empty patterns.")
       end
 
-      if !((name = @name).nil?) && rule.pattern[0] == name
+      if !(@name.nil?) && (rule.pattern[0] == @name)
         if rule.pattern.size < 2
           raise Error::SyntaxFault.new(
             "Left-recursive rules must have at least two patterns")
         end
 
         rule.pattern.shift
+        #@lr_rules.each{|r|
+        #  if r.pattern == rule.pattern
+        #    pp r
+        #    pp rule
+        #    pp self
+        #    raise "err A"
+        #  end
+        #}
         @lr_rules << rule
       else
+        #@lr_rules.each{|r|
+        #  if r.pattern == rule.pattern
+        #    pp r
+        #    pp rule
+        #    pp self
+        #    raise "err B"
+        #  end
+        #}
         @rules << rule
       end
     end

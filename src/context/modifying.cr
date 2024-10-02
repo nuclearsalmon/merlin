@@ -101,6 +101,12 @@ private class Merlin::Context(IdentT, NodeT)
     end
   end
 
+  def subcontext_self(as_key : IdentT) : Nil
+    sub_context = copy_with(name: as_key)
+    clear
+    add(as_key, sub_context, clone: false)
+  end
+
   def rename(
       from_key : IdentT?,
       to_key : IdentT?) : Nil
@@ -114,8 +120,9 @@ private class Merlin::Context(IdentT, NodeT)
   end
 
   def merge(
-      from : Context(IdentT, NodeT),
-      clone : Bool = true) : Nil
+    from : Context(IdentT, NodeT),
+    clone : Bool = true
+  ) : Nil
     unless (from_sub_contexts = from.@sub_contexts).nil? || from_sub_contexts.empty?
       if clone
         from_sub_contexts = from_sub_contexts.clone
@@ -145,7 +152,7 @@ private class Merlin::Context(IdentT, NodeT)
   end
 
   def unsafe_merge(from : Context(IdentT, NodeT))
-    merge(from, clone: false)
+    merge(from: from, clone: false)
   end
 
   def add(value : NodeT) : Nil
@@ -164,23 +171,31 @@ private class Merlin::Context(IdentT, NodeT)
     (@tokens ||= Array(MatchedToken(IdentT)).new).concat(values)
   end
 
-  # unsafe add, will NOT clone and duplicate
-  def unsafe_add(
-      key : IdentT?,
-      value : Context(IdentT, NodeT)) : Nil
+  def add(
+    key : IdentT?,
+    value : Context(IdentT, NodeT),
+    clone : Bool = true
+  ) : Nil
     sub_contexts = @sub_contexts
     if sub_contexts.nil?
       (@sub_contexts = \
         Hash(IdentT, Context(IdentT, NodeT)).new
-      )[key] = value
+      )[key] = (clone ? value.clone : value)
     else
       sub_context = sub_contexts[key]?
       if sub_context.nil?
-        sub_contexts[key] = value
+        sub_contexts[key] = (clone ? value.clone : value)
       else
-        sub_context.merge(value, clone: false)
+        sub_context.merge(value, clone: clone)
       end
     end
+  end
+
+  def unsafe_add(
+    key : IdentT?,
+    value : Context(IdentT, NodeT)
+  ) : Nil
+    add(key: key, value: value, clone: false)
   end
 
   def add(
