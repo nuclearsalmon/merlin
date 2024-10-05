@@ -4,7 +4,8 @@ module Merlin
     getter lr_rules         : Array(Rule(IdentT, NodeT))
     getter rules            : Array(Rule(IdentT, NodeT))
     getter optional         : Bool
-    getter computed_ignores : Array(IdentT)?
+    getter ignores          : Array(IdentT)?
+    getter noignores        : Array(IdentT)?
     getter trailing_ignores : Array(IdentT)?
 
     def initialize(
@@ -12,7 +13,8 @@ module Merlin
       @lr_rules         : Array(Rule(IdentT, NodeT)),
       @rules            : Array(Rule(IdentT, NodeT)),
       @optional         : Bool,
-      @computed_ignores : Array(IdentT)?,
+      @ignores          : Array(IdentT)?,
+      @noignores        : Array(IdentT)?,
       @trailing_ignores : Array(IdentT)?)
     end
   end

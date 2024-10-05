@@ -61,15 +61,13 @@ private class Merlin::Context(IdentT, NodeT)
   end
 
   def absorb(key : IdentT?) : Nil
-    context = @sub_contexts.try(&.[key]?)
-    return if context.nil?
+    context = self[key]
     drop_context(key)
     merge(context, clone: false)
   end
 
   def become(key : IdentT?) : Nil
-    context = @sub_contexts.try(&.[key]?)
-    return if context.nil?
+    context = self[key]
     reset(key)
     merge(context, clone: false)
   end

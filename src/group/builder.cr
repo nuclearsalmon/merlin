@@ -11,39 +11,16 @@ module Merlin
     def initialize(@name : IdentT)
     end
 
-    private def compute_ignores(root_ignores : Array(IdentT)?) : Array(IdentT)?
-      ignores = @ignores
-      noignores = @noignores
-      final_ignores = Array(IdentT).new
-
-      if noignores.nil?
-        final_ignores.concat(root_ignores) unless root_ignores.nil?
-      elsif noignores.size > 0
-        unless root_ignores.nil?
-          root_ignores.each { |ig_sym|
-            next if !(noignores.nil?) && noignores.includes?(ig_sym)
-            final_ignores << ig_sym
-          }
-        end
-      end
-      final_ignores.concat(ignores) unless ignores.nil?
-
-      return final_ignores.empty? ? nil : final_ignores
-    end
-
-    def build(with_root : Group(IdentT, NodeT)?) : Group(IdentT, NodeT)
-      # compute ignores
-      root_ignores = with_root.try(&.computed_ignores)
-      computed_ignores = compute_ignores(root_ignores)
-
-      # build
+    def build : Group(IdentT, NodeT)
       Group(IdentT, NodeT).new(
-        name:             @name,
-        lr_rules:         @lr_rules,
-        rules:            @rules,
-        optional:         @optional,
-        computed_ignores: computed_ignores,
-        trailing_ignores: @trailing_ignores)
+        name: @name,
+        lr_rules: @lr_rules,
+        rules: @rules,
+        optional: @optional,
+        ignores: @ignores,
+        noignores: @noignores,
+        trailing_ignores: @trailing_ignores
+      )
     end
 
     #def self.build(name : IdentT?, &)
@@ -118,18 +95,10 @@ module Merlin
     end
 
     def noignore() : Nil
-      if @name.nil?
-        raise SyntaxFault.new("A root group cannot use noignore.")
-      end
-
       @noignores ||= Array(IdentT).new
     end
 
     def noignore(pattern : IdentT) : Nil
-      if @name.nil?
-        raise SyntaxFault.new("A root group cannot use noignore.")
-      end
-
       unless Util.upcase?(pattern.to_s)
         raise Error::SyntaxFault.new("Only tokens can be ignored.")
       end

@@ -9,13 +9,15 @@ module Merlin
     @pattern_i              : Int32 = 0
     property? context       : Context(IdentT, NodeT)? = nil
     getter? done            : Bool = false
+    getter current_ignores  : Array(IdentT)
 
     delegate name, to: @group
 
     def initialize(
       @started_at : Int32,
       @group : Group(IdentT, NodeT),
-      @lr : Bool
+      @lr : Bool,
+      @current_ignores : Array(IdentT)
     )
       @store_at = @started_at
     end
@@ -32,7 +34,7 @@ module Merlin
       name : IdentT,
       token : MatchedToken(IdentT)
     ) : Nil
-      if rule.pattern.size > 1
+      if @lr || rule.pattern.size > 1
         context.add(name, token)
       else
         context.add(token)
@@ -43,7 +45,7 @@ module Merlin
       name : IdentT,
       new_context : Context(IdentT, NodeT)
     ) : Nil
-      if rule.pattern.size > 1
+      if @lr || rule.pattern.size > 1
         context.add(name, new_context)
       else
         context.merge(new_context)

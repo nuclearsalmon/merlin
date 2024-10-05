@@ -39,9 +39,10 @@ module Merlin
 
       # set initial marker
       @parsing_queue << Directive(IdentT, NodeT).new(
-        started_at: 0,
-        group:      @root,
-        lr:         false
+        started_at:      0,
+        group:           @root,
+        lr:              false,
+        current_ignores: compute_new_ignores(nil, @root)
       )
 
       # parse
@@ -79,13 +80,12 @@ module Merlin
         # get directive target
         directive = @parsing_queue[-1]
         target_ident = directive.target_ident
-        computed_ignores = directive.group.computed_ignores
 
         # handle current directive target
         if Util.upcase?(target_ident)
           # token
           token_directive = @tokens[target_ident]
-          token = expect_token(token_directive, computed_ignores)
+          token = expect_token(token_directive, directive.current_ignores)
 
           if token.nil?
             puts "#{padding}failed :#{directive.target_ident}"
@@ -141,10 +141,12 @@ module Merlin
           if cached_context.nil?
             puts "#{padding}trying :#{directive.target_ident}"
             directive.next_target  # ?
+            new_ignores = compute_new_ignores(directive.current_ignores, @groups[target_ident])
             @parsing_queue << Directive(IdentT, NodeT).new(
-              started_at: @parsing_position,
-              group:      @groups[target_ident],
-              lr:         false
+              started_at:      @parsing_position,
+              group:           @groups[target_ident],
+              lr:              false,
+              current_ignores: new_ignores
             )
             next
           else
@@ -226,9 +228,10 @@ module Merlin
             # switch to lr
             directive.have_tried_lr = true
             @parsing_queue << Directive(IdentT, NodeT).new(
-              started_at: @parsing_position,
-              group:      directive.group,
-              lr:         true
+              started_at:      @parsing_position,
+              group:           directive.group,
+              lr:              true,
+              current_ignores: directive.current_ignores
             )
 
             # stop result loop
@@ -313,6 +316,22 @@ module Merlin
         @parsing_position += cached[:nr_of_tokens]
         return cached[:context].clone
       end
+    end
+
+    private def compute_new_ignores(
+      current_ignores : Array(IdentT)?, 
+      group : Group(IdentT, NodeT)
+    ) : Array(IdentT)
+      new_ignores = current_ignores.nil? ? [] of IdentT : current_ignores.dup
+
+      # Remove noignores
+      new_ignores.reject! { |ig| group.noignores.includes?(ig) }
+
+      # Add new ignores
+      new_ignores.concat(group.ignores)
+
+      new_ignores.uniq!
+      new_ignores
     end
 
     # a a b -> (a) (a b) x
