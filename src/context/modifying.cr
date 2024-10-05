@@ -1,4 +1,4 @@
-private class Merlin::Context(IdentT, NodeT)
+class Merlin::Context(IdentT, NodeT)
   def clear : Nil
     @nodes.try(&.clear)
     @tokens.try(&.clear)

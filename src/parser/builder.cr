@@ -1,6 +1,6 @@
 module Merlin
   class ParserBuilder(IdentT, NodeT)
-    @root_name : String? = nil
+    @root_name : IdentT? = nil
     @group_builders = Hash(IdentT, GroupBuilder(IdentT, NodeT)).new
     @tokens = Hash(IdentT, Token(IdentT)).new
 
@@ -10,12 +10,16 @@ module Merlin
       instance
     end
 
+    def with_self(&)
+      with self yield
+    end
+
     def build : Parser(IdentT, NodeT)
       # build groups
       groups = Hash(IdentT, Group(IdentT, NodeT)).new
-      @group_builders.each { |builder|
+      @group_builders.each { |name, builder|
         group = builder.build
-        groups[group.name] = group
+        groups[name] = group
       }
 
       # ensure root was defined

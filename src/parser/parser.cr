@@ -325,10 +325,14 @@ module Merlin
       new_ignores = current_ignores.nil? ? [] of IdentT : current_ignores.dup
 
       # Remove noignores
-      new_ignores.reject! { |ig| group.noignores.includes?(ig) }
+      unless (group_noignores = group.noignores).nil?
+        new_ignores.reject! { |ig| group_noignores.includes?(ig) }
+      end
 
-      # Add new ignores
-      new_ignores.concat(group.ignores)
+      # Add ignores
+      unless (group_ignores = group.ignores).nil?
+        new_ignores.concat(group_ignores)
+      end
 
       new_ignores.uniq!
       new_ignores

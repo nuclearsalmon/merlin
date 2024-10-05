@@ -1,4 +1,4 @@
-private class Merlin::Context(IdentT, NodeT)
+class Merlin::Context(IdentT, NodeT)
   def []?(key : IdentT?) : Context(IdentT, NodeT)?
     context = @sub_contexts.try(&.[key]?)
     if context.nil? && key == @name

@@ -110,6 +110,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
 
   private def detect_unused_groups : Nil
     unused : Array(IdentT) = @groups.map { |sym, _| sym }
+    unused.delete(@root.name)
     @groups.each { |_, group|
       rules = group.rules.dup.concat(group.lr_rules)
       rules.each { |rule|

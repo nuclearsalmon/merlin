@@ -1,7 +1,7 @@
 require "./modifying"
 require "./querying"
 
-private class Merlin::Context(IdentT, NodeT)
+class Merlin::Context(IdentT, NodeT)
   property name : IdentT?
 
   def name_s : String
