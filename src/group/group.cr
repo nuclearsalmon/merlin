@@ -7,6 +7,9 @@ module Merlin
     getter ignores          : Array(IdentT)?
     getter noignores        : Array(IdentT)?
     getter trailing_ignores : Array(IdentT)?
+    getter inherited_ignores : Array(IdentT)?
+    getter inherited_noignores : Array(IdentT)?
+    getter inherited_trailing_ignores : Array(IdentT)?
 
     def initialize(
       @name             : IdentT,
@@ -15,7 +18,10 @@ module Merlin
       @optional         : Bool,
       @ignores          : Array(IdentT)?,
       @noignores        : Array(IdentT)?,
-      @trailing_ignores : Array(IdentT)?)
+      @trailing_ignores : Array(IdentT)?,
+      @inherited_ignores : Array(IdentT)?,
+      @inherited_noignores : Array(IdentT)?,
+      @inherited_trailing_ignores : Array(IdentT)?)
     end
   end
 end

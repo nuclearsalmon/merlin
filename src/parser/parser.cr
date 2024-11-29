@@ -11,6 +11,7 @@ module Merlin
     @root   : Group(IdentT, NodeT)
     @groups : Hash(IdentT, Group(IdentT, NodeT))
     @tokens : Hash(IdentT, Token(IdentT))
+    @longest_token_name_size : Int32
 
     # parsing state
     # ---
@@ -25,6 +26,7 @@ module Merlin
       @groups = Hash(IdentT, Group(IdentT, NodeT)).new,
       @tokens = Hash(IdentT, Token(IdentT)).new
     )
+      @longest_token_name_size = @tokens.values.map(&.name.to_s.size).max
       validate_references_existance
       detect_and_fix_left_recursive_rules
       detect_unused_tokens
@@ -38,11 +40,14 @@ module Merlin
       @parsing_queue.clear()
 
       # set initial marker
+      initial_ignores = compute_new_ignores(nil, @root)
+      initial_trailing_ignores = compute_new_trailing_ignores(nil, @root)
       @parsing_queue << Directive(IdentT, NodeT).new(
-        started_at:      0,
-        group:           @root,
-        lr:              false,
-        current_ignores: compute_new_ignores(nil, @root)
+        started_at: 0,
+        group: @root,
+        lr: false,
+        current_ignores: initial_ignores,
+        current_trailing_ignores: initial_trailing_ignores
       )
 
       # parse
@@ -70,198 +75,198 @@ module Merlin
 
     private def generate_log_padding
       step = @parsing_queue.size
-      "#{step}#{" " * step}"
+      current_token = @parsing_tokens[@parsing_position]
+      ("#{step.to_s.rjust(2)}|" +
+        " #{@parsing_position.to_s.rjust(@parsing_tokens.size.to_s.size)}|" +
+        " #{current_token.position.row.to_s.rjust(2)},#{current_token.position.col.to_s.ljust(2)}|" +
+        " #{current_token.name.to_s.ljust(@longest_token_name_size)}|" +
+        " ".rjust(step))
     end
 
     private def do_parse : NodeT?
       loop do
-        padding = generate_log_padding
-
-        # get directive target
         directive = @parsing_queue[-1]
-        target_ident = directive.target_ident
 
-        # handle current directive target
-        if Util.upcase?(target_ident)
-          # token
-          token_directive = @tokens[target_ident]
-          token = expect_token(token_directive, directive.current_ignores)
-
-          if token.nil?
-            puts "#{padding}failed :#{directive.target_ident}"
-            directive.reset_context  # FIXME: this may break lr
-            #@parsing_queue.each{|e|puts e.to_s}
-
-            # remove as we're done with this directive
-            # try next rule
-            directive.next_rule
-            #puts "#{padding}next A: #{directive.to_s}"
-
-            # remove fails from queue
-            skip = (loop do
-              if directive.done?
-                @parsing_queue.pop()
-
-                if @parsing_queue.empty?
-                  return nil
-                else
-                  next_directive = @parsing_queue[-1]
-                  #puts "#{padding}dir     : #{directive.to_s}"
-                  #puts "#{padding}next_dir: #{next_directive.to_s}"
-                  if directive.lr? && next_directive.done?
-                    #puts "setting #{@parsing_position} to #{directive.started_at}"
-                    @parsing_position = directive.started_at
-
-                    directive = next_directive
-                    break false  # inner loop control
-                  else
-                    directive = next_directive
-                    directive.next_rule(error: false)
-                  end
-                end
-              else
-                #puts "setting #{@parsing_position} to #{directive.started_at}"
-                @parsing_position = directive.started_at
-
-                break true  # inner loop control
-              end
-            end)
-
-            next if skip
-          else
-            # success, add to context
-            puts "#{padding}matched :#{directive.target_ident}"
-            directive.add(target_ident, token)
-            directive.next_target
-          end
+        # parse one step
+        if Util.upcase?(directive.target_ident)
+          parse_token(directive)
         else
-          # group
-          cached_context = expect_cache(target_ident)
-
-          if cached_context.nil?
-            puts "#{padding}trying :#{directive.target_ident}"
-            directive.next_target  # ?
-            new_ignores = compute_new_ignores(directive.current_ignores, @groups[target_ident])
-            @parsing_queue << Directive(IdentT, NodeT).new(
-              started_at:      @parsing_position,
-              group:           @groups[target_ident],
-              lr:              false,
-              current_ignores: new_ignores
-            )
-            next
-          else
-            puts "#{padding}matched :#{target_ident} from cache: #{cached_context.pretty_inspect}"
-
-            directive.add(
-              target_ident,
-              cached_context
-            )
-            directive.next_target
-          end
+          parse_group(directive)
         end
 
-        # handle result
-        while directive.done?
-          puts "#{padding}matched :#{directive.name}"
-          #if (q = @parsing_queue[-2..]?).nil?
-          #  puts @parsing_queue[-1].to_s
-          #else
-          #  q.each{|e|puts e.to_s}
-          #end
+        # run post parse actions and check if we got a result
+        result = post_parse
+        return result unless result.nil?
+      end
+    end
 
-          #puts "==="
-          #puts directive.pretty_inspect
-
-          # handle trailing ignored tokens
-          consume_trailing(directive.group.trailing_ignores)
-
-          # check if parent is lr
-          parent_directive = @parsing_queue[-2]?
-          unless parent_directive.nil?
-            if parent_directive.have_tried_lr?
-              #puts "directive ctx: #{directive.context.pretty_inspect}"
-              #puts "directive ident: #{parent_directive.target_ident}"
-              #puts "parent_directive (before): #{parent_directive.pretty_inspect}"
-
-              # inject into parent
-              parent_context = parent_directive.context
-              parent_context.subcontext_self(
-                parent_directive.name.not_nil!
-              )
-              parent_context.merge(
-                directive.context
-              )
-
-              # replace context with parent context
-              directive.context = parent_context
-
-              # set store position
-              directive.store_at = parent_directive.started_at
-
-              #puts "parent_directive ctx (after): #{parent_directive.context.pretty_inspect}"
-              #puts "queue: #{@parsing_queue.pretty_inspect}"
-
-              # remove parent directive from queue
-              @parsing_queue.delete_at(-2)
-            end
-          end
+    private def post_parse : NodeT?
+      loop do
+        padding = generate_log_padding
+        directive = @parsing_queue[-1]
+        
+        case directive.state
+        in Directive::State::Waiting
+          consume_trailing(directive.current_ignores)
+          break
+        in Directive::State::Matched
+          consume_trailing(directive.current_trailing_ignores)
+          puts "#{padding}#{"\033[92;48;5;83;30m"}matched#{"\033[m"} :#{directive.name}"
 
           # execute block on context
-          block = directive.rule.block
-          unless block.nil?
+          unless (block = directive.rule.block).nil?
             block.call(directive.context)
-            #puts "directive #{directive.name} after block call: #{directive.context.pretty_inspect}"
           end
 
-          #pp directive
+          # check if we can try lr
+          if directive.can_try_lr?
+            puts "#{padding}trying lr rules of :#{directive.name}"
 
-          if !directive.have_tried_lr? && directive.can_switch_to_lr?
-            # save to cache
-            # FIXME: should store? not sure. commenting it out fixes shit.
-            #@cache.store(
-            #  ident:            directive.name,
-            #  context:          directive.context.clone,  # safe
-            #  start_position:   directive.store_at,
-            #  parsing_position: @parsing_position
-            #)
+            # set flag
+            directive.set_have_tried_lr_flag
 
-            # switch to lr
-            directive.have_tried_lr = true
+            # create lr directive
             @parsing_queue << Directive(IdentT, NodeT).new(
-              started_at:      @parsing_position,
-              group:           directive.group,
-              lr:              true,
-              current_ignores: directive.current_ignores
+              started_at:               @parsing_position,
+              group:                    directive.group,
+              lr:                       true,
+              current_ignores:          directive.current_ignores,
+              current_trailing_ignores: directive.current_trailing_ignores
             )
 
-            # stop result loop
+            # stop cleanup loop
             break
           else
+            # remove as we're done with this directive
+            @parsing_queue.pop()
+
             # save to cache
             @cache.store(
               ident:            directive.name,
               context:          directive.context,  # unsafe
-              start_position:   directive.store_at,
+              start_position:   directive.started_at,
               parsing_position: @parsing_position
             )
 
-            # remove as we're done with this directive
-            @parsing_queue.pop()
-
             # check if there's a parent directive
-            if (parent_directive = @parsing_queue[-1]?).nil?
-              return directive.context.result
-            else
-              # give to parent directive
-              parent_directive.add(
-                directive.name,
-                directive.context
-              )
-            end
+            parent_directive = @parsing_queue[-1]?
+            unless parent_directive.nil?
+              # give context to parent context
+              if directive.lr?
+                parent_directive.context.subcontext_self
+                parent_directive.context.merge(directive.context)
+              else
+                if directive.rule.pattern.size > 1
+                  parent_directive.context.add(
+                    directive.name,
+                    directive.context
+                  )
+                else
+                  parent_directive.context.merge(directive.context)
+                end
+              end
 
-            # assign next directive
-            directive = parent_directive
+              # mark parent as matched
+              if parent_directive.end_of_pattern?
+                parent_directive.state = Directive::State::Matched
+              else
+                parent_directive.next_target
+                return nil
+              end
+            else
+              return directive.context.result
+            end
           end
+        in Directive::State::Failed
+          # traverse back up the queue
+          puts "#{padding}failed :#{directive.name}"
+          
+          # removed failed directive from queue
+          @parsing_queue.pop()
+
+          # check parent directive
+          parent_directive = @parsing_queue[-1]?
+          if parent_directive.nil?
+            puts "#{padding}backtracked until no more directives"
+            return nil 
+          else
+            #puts "#{padding}backtracked to :#{parent_directive.name}"
+            if parent_directive.can_advance_rule?
+              @parsing_position = parent_directive.started_at
+              parent_directive.next_rule
+            elsif !(parent_directive.have_tried_lr?)
+              @parsing_position = parent_directive.started_at
+              parent_directive.state = Directive::State::Failed
+            end
+          end
+        end
+      end
+    end
+
+    private def parse_token(directive : Directive(IdentT, NodeT)) : Nil
+      padding = generate_log_padding
+      target_ident = directive.target_ident
+      token = @tokens[target_ident]
+      matched_token = expect_token(token, directive.current_ignores)
+
+      unless matched_token.nil?
+        puts "#{padding}matched :#{target_ident}"
+        directive.add_to_context(target_ident, matched_token)
+        if directive.end_of_pattern?
+          directive.state = Directive::State::Matched
+        else
+          directive.next_target
+        end
+      else
+        puts "#{padding}failed :#{target_ident}"
+        if directive.end_of_rule?
+          directive.state = Directive::State::Failed
+        else
+          directive.next_rule
+        end
+      end
+    end
+
+    private def parse_group(directive : Directive(IdentT, NodeT)) : Nil
+      padding = generate_log_padding
+      target_ident = directive.target_ident
+      cached_context = expect_cache(target_ident)
+
+      if cached_context.nil?
+        puts "#{padding}trying :#{target_ident} from :#{directive.name}"
+
+        # advance this directive
+        #directive.next_target(error: false)
+
+        # insert new directive
+        new_ignores = compute_new_ignores(
+          directive.current_ignores, 
+          @groups[target_ident]
+        )
+        new_trailing_ignores = compute_new_trailing_ignores(
+          directive.current_trailing_ignores, 
+          @groups[target_ident]
+        )
+        @parsing_queue << Directive(IdentT, NodeT).new(
+          started_at:               @parsing_position,
+          group:                    @groups[target_ident],
+          lr:                       false,
+          current_ignores:          new_ignores,
+          current_trailing_ignores: new_trailing_ignores
+        )
+      else
+        print_cache_details = false  # FIXME: debug flag
+        puts (
+          "#{padding}#{"\033[92;48;5;83;30m"}matched#{"\033[m"} :#{target_ident}"
+          " #{"\033[92;48;5;83;30m"}from cache#{"\033[m"}" +
+          (print_cache_details ? ": #{cached_context.pretty_inspect}" : ""))
+
+        directive.add_to_context(target_ident, cached_context)
+
+        if directive.end_of_pattern?
+          directive.state = Directive::State::Matched
+        else
+          directive.next_target
         end
       end
     end
@@ -319,23 +324,53 @@ module Merlin
     end
 
     private def compute_new_ignores(
-      current_ignores : Array(IdentT)?, 
+      current_ignores : Array(IdentT)?,
       group : Group(IdentT, NodeT)
     ) : Array(IdentT)
       new_ignores = current_ignores.nil? ? [] of IdentT : current_ignores.dup
 
-      # Remove noignores
-      unless (group_noignores = group.noignores).nil?
-        new_ignores.reject! { |ig| group_noignores.includes?(ig) }
+      # Apply inherited ignores
+      unless (inherited_ignores = group.inherited_ignores).nil?
+        new_ignores.concat(inherited_ignores)
       end
 
-      # Add ignores
+      # Remove inherited noignores
+      unless (inherited_noignores = group.inherited_noignores).nil?
+        new_ignores.reject! { |ig| inherited_noignores.includes?(ig) }
+      end
+
+      # Apply local ignores (overriding inherited ones)
       unless (group_ignores = group.ignores).nil?
         new_ignores.concat(group_ignores)
       end
 
+      # Remove local noignores (overriding inherited ones)
+      unless (group_noignores = group.noignores).nil?
+        new_ignores.reject! { |ig| group_noignores.includes?(ig) }
+      end
+
       new_ignores.uniq!
       new_ignores
+    end
+
+    private def compute_new_trailing_ignores(
+      current_trailing_ignores : Array(IdentT)?,
+      group : Group(IdentT, NodeT)
+    ) : Array(IdentT)
+      new_trailing_ignores = current_trailing_ignores.nil? ? [] of IdentT : current_trailing_ignores.dup
+
+      # Apply inherited trailing ignores
+      unless (inherited_trailing_ignores = group.inherited_trailing_ignores).nil?
+        new_trailing_ignores.concat(inherited_trailing_ignores)
+      end
+
+      # Apply local trailing ignores (overriding inherited ones)
+      unless (group_trailing_ignores = group.trailing_ignores).nil?
+        new_trailing_ignores.concat(group_trailing_ignores)
+      end
+
+      new_trailing_ignores.uniq!
+      new_trailing_ignores
     end
 
     # a a b -> (a) (a b) x

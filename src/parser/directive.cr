@@ -1,25 +1,58 @@
 module Merlin
   private class Directive(IdentT, NodeT)
-    getter started_at       : Int32
-    getter group            : Group(IdentT, NodeT)
-    getter? lr              : Bool
-    property? have_tried_lr : Bool = false
-    property store_at       : Int32
-    @rule_i                 : Int32 = 0
-    @pattern_i              : Int32 = 0
-    property? context       : Context(IdentT, NodeT)? = nil
-    getter? done            : Bool = false
-    getter current_ignores  : Array(IdentT)
+    enum State
+      Waiting
+      Matched
+      Failed
+    end
+
+    getter group                    : Group(IdentT, NodeT)
+    getter started_at               : Int32
+    @rule_i                         : Int32 = 0
+    @pattern_i                      : Int32 = 0
+    getter? lr                      : Bool
+    getter? have_tried_lr           : Bool = false
+    property? context               : Context(IdentT, NodeT)? = nil
+    property state                  : State = State::Waiting
+    getter current_ignores          : Array(IdentT)
+    getter current_trailing_ignores : Array(IdentT)
 
     delegate name, to: @group
 
-    def initialize(
-      @started_at : Int32,
-      @group : Group(IdentT, NodeT),
-      @lr : Bool,
-      @current_ignores : Array(IdentT)
+    private def initialize(
+      @started_at               : Int32,
+      @group                    : Group(IdentT, NodeT),
+      @lr                       : Bool,
+      @rule_i                   : Int32,
+      @pattern_i                : Int32,
+      @context                  : Context(IdentT, NodeT)?,
+      @state                    : State,
+      @current_ignores          : Array(IdentT),
+      @current_trailing_ignores : Array(IdentT)
     )
-      @store_at = @started_at
+    end
+
+    def initialize(
+      @started_at               : Int32,
+      @group                    : Group(IdentT, NodeT),
+      @lr                       : Bool,
+      @current_ignores          : Array(IdentT),
+      @current_trailing_ignores : Array(IdentT)
+    )
+    end
+
+    def clone : Directive(IdentT, NodeT)
+      Directive.new(
+        @started_at,
+        @group,
+        @lr,
+        @rule_i,
+        @pattern_i,
+        @context.try(&.clone),
+        @state,
+        @current_ignores.dup,
+        @current_trailing_ignores.dup
+      )
     end
 
     def context : Context(IdentT, NodeT)
@@ -30,22 +63,22 @@ module Merlin
       @context.try(&.reset(name))
     end
 
-    def add(
+    def add_to_context(
       name : IdentT,
       token : MatchedToken(IdentT)
     ) : Nil
-      if @lr || rule.pattern.size > 1
+      if rule.pattern.size > 1
         context.add(name, token)
       else
         context.add(token)
       end
     end
 
-    def add(
+    def add_to_context(
       name : IdentT,
       new_context : Context(IdentT, NodeT)
     ) : Nil
-      if @lr || rule.pattern.size > 1
+      if rule.pattern.size > 1
         context.add(name, new_context)
       else
         context.merge(new_context)
@@ -68,57 +101,66 @@ module Merlin
       pattern[@pattern_i]
     end
 
-    def can_switch_to_lr? : Bool
-      !(@lr || @group.lr_rules.empty?)
+    def can_advance_pattern? : Bool
+      @pattern_i + 1 < pattern.size
     end
 
-    private def mark_done : Nil
-      if @done
-        raise Error::Severe.new("Cannot advance further, end is already reached.")
-      else
-        @done = true
-      end
+    def can_advance_rule? : Bool
+      @rule_i + 1 < rules.size
+    end
+
+    def can_try_lr? : Bool
+      !@have_tried_lr && !@lr && !@group.lr_rules.empty?
+    end
+
+    def end_of_pattern? : Bool
+      @pattern_i + 1 >= rule.pattern.size
+    end
+
+    def end_of_rule? : Bool
+      @rule_i + 1 >= rules.size
+    end
+
+    def set_have_tried_lr_flag : Nil
+      raise Error::Severe.new("Already tried lr") if @have_tried_lr
+      @have_tried_lr = true
     end
 
     def next_rule(error : Bool = true) : Nil
       # see if inc possible
       if @rule_i + 1 >= rules.size
-        if error
-          mark_done
-        else
-          @done = true
-        end
+        raise Error::Severe.new(
+          "Cannot advance further, reached end of" +
+          "#{@lr ? "lr" : ""} rules.") if error
       else
-        # inc rule
-        @done = false
-        @rule_i += 1
-        @pattern_i = 0
+        @rule_i += 1    # inc rule
+        @pattern_i = 0  # reset pattern
       end
     end
 
-    def next_target : Nil
+    def next_target(error : Bool = true) : Nil
       if @pattern_i + 1 >= rule.pattern.size
-        mark_done
+        raise Error::Severe.new(
+          "Cannot advance further, reached end of pattern for" +
+          "#{@lr ? "lr" : ""} rule #{rule.pattern}.") if error
       else
-        @done = false
         @pattern_i += 1
       end
     end
 
     def to_s : String
       pretty_context_s = @context
-        .pretty_inspect
+        .try(&.pretty_inspect
         .lines[1..]
-        .map{ |line| "\n #{line}" }
-        .join
+        .map{ |line| "\n #{line}" })
+
       "<Directive \"#{name}\":" +
-      "\n @context=#{pretty_context_s}" +
-      "\n @lr=#{@lr}" +
-      "\n @have_tried_lr=#{@have_tried_lr}" +
+      "\n @started_at=#{@started_at}" +
       "\n @rule_i=#{@rule_i}" +
       "\n @pattern_i=#{@pattern_i}" +
-      "\n @started_at=#{@started_at}" +
-      "\n @done=#{@done}" +
+      "\n @lr=#{@lr}" +
+      "\n @group=#{@group.name}" +
+      "\n @context=#{pretty_context_s}" +
       ">"
     end
   end

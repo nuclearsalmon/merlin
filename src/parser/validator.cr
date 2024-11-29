@@ -95,11 +95,16 @@ module Merlin::ParserValidator(IdentT, NodeT)
         }
       }
 
-      ignores = group.ignores
-      syms.concat(ignores) unless ignores.nil?
-
-      trailing_ignores = group.trailing_ignores
-      syms.concat(trailing_ignores) unless trailing_ignores.nil?
+      [
+        group.ignores,
+        group.noignores,
+        group.trailing_ignores,
+        group.inherited_ignores,
+        group.inherited_noignores,
+        group.inherited_trailing_ignores
+      ].each do |ignore_list|
+        syms.concat(ignore_list) unless ignore_list.nil?
+      end
 
       syms.each { |sym| unused.delete(sym) }
     }

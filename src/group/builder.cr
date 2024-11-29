@@ -7,6 +7,9 @@ module Merlin
     @ignores         : Array(IdentT)? = nil
     @noignores       : Array(IdentT)? = nil
     @trailingignores : Array(IdentT)? = nil
+    @inherited_ignores : Array(IdentT)? = nil
+    @inherited_noignores : Array(IdentT)? = nil
+    @inherited_trailing_ignores : Array(IdentT)? = nil
 
     def initialize(@name : IdentT)
     end
@@ -19,7 +22,10 @@ module Merlin
         optional: @optional,
         ignores: @ignores,
         noignores: @noignores,
-        trailing_ignores: @trailing_ignores
+        trailing_ignores: @trailing_ignores,
+        inherited_ignores: @inherited_ignores,
+        inherited_noignores: @inherited_noignores,
+        inherited_trailing_ignores: @inherited_trailing_ignores
       )
     end
 
@@ -98,29 +104,44 @@ module Merlin
       @noignores ||= Array(IdentT).new
     end
 
-    def noignore(pattern : IdentT) : Nil
+    private def check_token(pattern : IdentT) : Nil
       unless Util.upcase?(pattern.to_s)
         raise Error::SyntaxFault.new("Only tokens can be ignored.")
       end
+    end
+
+    def noignore(pattern : IdentT) : Nil
+      check_token(pattern)
       (@noignores ||= Array(IdentT).new) << pattern
     end
 
     def ignore(pattern : IdentT) : Nil
-      unless Util.upcase?(pattern.to_s)
-        raise Error::SyntaxFault.new("Only tokens can be ignored.")
-      end
+      check_token(pattern)
       (@ignores ||= Array(IdentT).new) << pattern
     end
 
     def ignore_trailing(pattern : IdentT) : Nil
-      unless Util.upcase?(pattern.to_s)
-        raise Error::SyntaxFault.new("Only tokens can be ignored.")
-      end
+      check_token(pattern)
       (@trailing_ignores ||= Array(IdentT).new) << pattern
     end
 
     def optional : Nil
       @optional = true
+    end
+
+    def inherited_ignore(pattern : IdentT) : Nil
+      check_token(pattern)
+      (@inherited_ignores ||= Array(IdentT).new) << pattern
+    end
+
+    def inherited_noignore(pattern : IdentT) : Nil
+      check_token(pattern)
+      (@inherited_noignores ||= Array(IdentT).new) << pattern
+    end
+
+    def inherited_ignore_trailing(pattern : IdentT) : Nil
+      check_token(pattern)
+      (@inherited_trailing_ignores ||= Array(IdentT).new) << pattern
     end
   end
 end

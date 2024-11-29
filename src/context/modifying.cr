@@ -99,7 +99,7 @@ class Merlin::Context(IdentT, NodeT)
     end
   end
 
-  def subcontext_self(as_key : IdentT) : Nil
+  def subcontext_self(as_key : IdentT = @name.not_nil!) : Nil
     sub_context = copy_with(name: as_key)
     clear
     add(as_key, sub_context, clone: false)
