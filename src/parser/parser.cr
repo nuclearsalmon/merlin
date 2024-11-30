@@ -8,6 +8,7 @@ module Merlin
     # parser configuration
     # ---
 
+    @eol_identt : IdentT
     @root   : Group(IdentT, NodeT)
     @groups : Hash(IdentT, Group(IdentT, NodeT))
     @tokens : Hash(IdentT, Token(IdentT))
@@ -22,6 +23,7 @@ module Merlin
     @cache            = Cache(IdentT, NodeT).new
 
     def initialize(
+      @eol_identt : IdentT,
       @root   : Group(IdentT, NodeT),
       @groups = Hash(IdentT, Group(IdentT, NodeT)).new,
       @tokens = Hash(IdentT, Token(IdentT)).new
@@ -76,7 +78,7 @@ module Merlin
     private def generate_log_padding(offset : Int32 = 0)
       step = @parsing_queue.size + offset
       current_token = @parsing_tokens[@parsing_position]? || MatchedToken(IdentT).new(
-        name: IdentT,
+        name: @eol_identt,
         value: "",
         position: Position.new(@parsing_tokens[-1].position.row, @parsing_tokens[-1].position.col)
       )
@@ -86,7 +88,7 @@ module Merlin
         " #{@parsing_position.to_s.rjust(@parsing_tokens.size.to_s.size)}│",
         " #{current_token.position.row.to_s.rjust(2)},#{current_token.position.col.to_s.ljust(2)}│",
         " #{current_token.name.to_s.ljust(@longest_token_name_size)}",
-        ("│" * (step-1))
+        ("│" * Math.max(step-1, 0))
       ].join
     end
 
