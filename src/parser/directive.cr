@@ -133,6 +133,7 @@ module Merlin
           "Cannot advance further, reached end of" +
           "#{@lr ? "lr" : ""} rules.") if error
       else
+        reset_context   # reset context
         @rule_i += 1    # inc rule
         @pattern_i = 0  # reset pattern
       end

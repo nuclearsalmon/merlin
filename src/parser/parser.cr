@@ -60,10 +60,10 @@ module Merlin
       # verify that every token was consumed
       position = @parsing_position
       if position < @parsing_tokens.size
-        Log.debug {
-          "Got #{result_node.pretty_inspect}, but only matched " +
+        Log.debug {[
+          "Got #{result_node.pretty_inspect}, but only matched ",
           "#{position}/#{@parsing_tokens.size} tokens."
-        }
+        ].join}
         raise Error::UnexpectedCharacter.new(
           @parsing_tokens[position].value[0],
           @parsing_tokens[position].position)
@@ -73,14 +73,21 @@ module Merlin
       result_node
     end
 
-    private def generate_log_padding
-      step = @parsing_queue.size
-      current_token = @parsing_tokens[@parsing_position]
-      ("#{step.to_s.rjust(2)}|" +
-        " #{@parsing_position.to_s.rjust(@parsing_tokens.size.to_s.size)}|" +
-        " #{current_token.position.row.to_s.rjust(2)},#{current_token.position.col.to_s.ljust(2)}|" +
-        " #{current_token.name.to_s.ljust(@longest_token_name_size)}|" +
-        " ".rjust(step))
+    private def generate_log_padding(offset : Int32 = 0)
+      step = @parsing_queue.size + offset
+      current_token = @parsing_tokens[@parsing_position]? || MatchedToken(IdentT).new(
+        name: IdentT,
+        value: "",
+        position: Position.new(@parsing_tokens[-1].position.row, @parsing_tokens[-1].position.col)
+      )
+
+      [
+        "#{step.to_s.rjust(2)}│",
+        " #{@parsing_position.to_s.rjust(@parsing_tokens.size.to_s.size)}│",
+        " #{current_token.position.row.to_s.rjust(2)},#{current_token.position.col.to_s.ljust(2)}│",
+        " #{current_token.name.to_s.ljust(@longest_token_name_size)}",
+        ("│" * (step-1))
+      ].join
     end
 
     private def do_parse : NodeT?
@@ -102,7 +109,6 @@ module Merlin
 
     private def post_parse : NodeT?
       loop do
-        padding = generate_log_padding
         directive = @parsing_queue[-1]
         
         case directive.state
@@ -110,17 +116,31 @@ module Merlin
           consume_trailing(directive.current_ignores)
           break
         in Directive::State::Matched
+          padding = generate_log_padding(-1)
+
           consume_trailing(directive.current_trailing_ignores)
-          puts "#{padding}#{"\033[92;48;5;83;30m"}matched#{"\033[m"} :#{directive.name}"
+          puts [
+            "#{padding}└#{"\033[92;48;5;83;30m"}matched#{"\033[m"} ",
+            directive.lr? ? "lr " : "",
+            ":#{directive.name}"
+          ].join
 
           # execute block on context
           unless (block = directive.rule.block).nil?
             block.call(directive.context)
           end
 
+          # save to cache
+          @cache.store(
+            ident:            directive.name,
+            context:          directive.context,  # unsafe
+            start_position:   directive.started_at,
+            parsing_position: @parsing_position
+          )
+
           # check if we can try lr
           if directive.can_try_lr?
-            puts "#{padding}trying lr rules of :#{directive.name}"
+            puts "#{padding}┌trying lr :#{directive.name}"
 
             # set flag
             directive.set_have_tried_lr_flag
@@ -135,18 +155,10 @@ module Merlin
             )
 
             # stop cleanup loop
-            break
+            return nil
           else
-            # remove as we're done with this directive
+            # remov@:#{directive.name}e as we're done with this directive
             @parsing_queue.pop()
-
-            # save to cache
-            @cache.store(
-              ident:            directive.name,
-              context:          directive.context,  # unsafe
-              start_position:   directive.started_at,
-              parsing_position: @parsing_position
-            )
 
             # check if there's a parent directive
             parent_directive = @parsing_queue[-1]?
@@ -154,9 +166,10 @@ module Merlin
               # give context to parent context
               if directive.lr?
                 parent_directive.context.subcontext_self
+                directive.context.subcontext_self
                 parent_directive.context.merge(directive.context)
               else
-                if directive.rule.pattern.size > 1
+                if parent_directive.rule.pattern.size > 1
                   parent_directive.context.add(
                     directive.name,
                     directive.context
@@ -178,29 +191,50 @@ module Merlin
             end
           end
         in Directive::State::Failed
-          # traverse back up the queue
-          puts "#{padding}failed :#{directive.name}"
-          
-          # removed failed directive from queue
-          @parsing_queue.pop()
+          padding = generate_log_padding(-1)
 
-          # check parent directive
-          parent_directive = @parsing_queue[-1]?
-          if parent_directive.nil?
-            puts "#{padding}backtracked until no more directives"
-            return nil 
+          # traverse back up the queue
+          can_advance = directive.can_advance_rule?
+          puts [
+            "#{padding}└failed ",
+            directive.lr? ? "lr " : "",
+            ":#{directive.target_ident}@:#{directive.name}"
+          ].join
+
+          # check if we can try a different rule
+          if can_advance
+            @parsing_position = directive.started_at
+            directive.next_rule
+            return nil
           else
-            #puts "#{padding}backtracked to :#{parent_directive.name}"
-            if parent_directive.can_advance_rule?
-              @parsing_position = parent_directive.started_at
-              parent_directive.next_rule
-            elsif !(parent_directive.have_tried_lr?)
-              @parsing_position = parent_directive.started_at
-              parent_directive.state = Directive::State::Failed
+            # removed failed directive from queue
+            @parsing_queue.pop()
+
+            # check parent directive
+            parent_directive = @parsing_queue[-1]?
+            if parent_directive.nil?
+              puts "#{padding}└backtracked until no more directives"
+              return nil 
+            else
+              puts [
+                "#{padding}└backtracked ",
+                directive.lr? ? "from lr " : "",
+                "to :#{parent_directive.name}"
+              ].join
+              @parsing_position = directive.started_at
+              if parent_directive.can_advance_rule?
+                parent_directive.next_rule
+                return nil
+              elsif !(
+                  parent_directive.state == Directive::State::Matched &&
+                  parent_directive.have_tried_lr?)
+                parent_directive.state = Directive::State::Failed
+              end
             end
           end
         end
       end
+      return nil
     end
 
     private def parse_token(directive : Directive(IdentT, NodeT)) : Nil
@@ -210,7 +244,7 @@ module Merlin
       matched_token = expect_token(token, directive.current_ignores)
 
       unless matched_token.nil?
-        puts "#{padding}matched :#{target_ident}"
+        puts "#{padding} matched :#{target_ident}"
         directive.add_to_context(target_ident, matched_token)
         if directive.end_of_pattern?
           directive.state = Directive::State::Matched
@@ -218,12 +252,8 @@ module Merlin
           directive.next_target
         end
       else
-        puts "#{padding}failed :#{target_ident}"
-        if directive.end_of_rule?
-          directive.state = Directive::State::Failed
-        else
-          directive.next_rule
-        end
+        puts "#{padding} failed :#{target_ident}"
+        directive.state = Directive::State::Failed
       end
     end
 
@@ -233,7 +263,7 @@ module Merlin
       cached_context = expect_cache(target_ident)
 
       if cached_context.nil?
-        puts "#{padding}trying :#{target_ident} from :#{directive.name}"
+        puts "#{padding}┌trying :#{target_ident}"
 
         # advance this directive
         #directive.next_target(error: false)
@@ -256,10 +286,11 @@ module Merlin
         )
       else
         print_cache_details = false  # FIXME: debug flag
-        puts (
-          "#{padding}#{"\033[92;48;5;83;30m"}matched#{"\033[m"} :#{target_ident}"
-          " #{"\033[92;48;5;83;30m"}from cache#{"\033[m"}" +
-          (print_cache_details ? ": #{cached_context.pretty_inspect}" : ""))
+        puts [
+          "#{padding}└#{"\033[92;48;5;83;30m"}matched#{"\033[m"} :#{target_ident}",
+          " #{"\033[92;48;5;83;30m"}from cache#{"\033[m"}",
+          (print_cache_details ? ": #{cached_context.pretty_inspect}" : "")
+        ].join
 
         directive.add_to_context(target_ident, cached_context)
 
