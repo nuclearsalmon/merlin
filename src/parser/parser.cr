@@ -290,9 +290,6 @@ module Merlin
 
       if cached_context.nil?
         puts "#{padding}┌trying :#{target_ident}"
-        if target_ident == :stmts
-          pp @parsing_queue
-        end
 
         # advance this directive
         # directive.next_target(error: false)
