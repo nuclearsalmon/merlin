@@ -1,18 +1,16 @@
 module Merlin
   class ParserBuilder(IdentT, NodeT)
-    @eol_identt : IdentT
     @root_name : IdentT? = nil
     @group_builders = Hash(IdentT, GroupBuilder(IdentT, NodeT)).new
     @tokens = Hash(IdentT, Token(IdentT)).new
 
-    def self.new(eol_identt : IdentT, &)
-      instance = self.new(eol_identt)
+    def self.new(&)
+      instance = self.new
       with instance yield instance
       instance
     end
 
-    def initialize(@eol_identt : IdentT)
-    end
+    #def initialize; end
 
     def with_self(&)
       with self yield
@@ -31,7 +29,7 @@ module Merlin
       raise Error::SyntaxFault.new("Undefined root") if root.nil?
 
       # build parser
-      Parser(IdentT, NodeT).new(@eol_identt, root, groups, @tokens)
+      Parser(IdentT, NodeT).new(root, groups, @tokens)
     end
 
     private def token(
