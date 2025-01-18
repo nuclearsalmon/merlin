@@ -173,9 +173,6 @@ module Merlin
           self_context = directive.context
           parent_context = parent_directive.context
 
-          pp parent_context  # stmts
-          pp self_context    # stmt
-
           # wrap
           parent_context.flatten
           parent_context.subcontext_self
@@ -186,17 +183,9 @@ module Merlin
           end
 
           parent_context.merge(self_context, clone: false)
-          #self_context.merge(parent_context, clone: false)
-          #parent_context = self_context
-
-          puts "---1"
-          pp parent_context
   
           # execute block on context
           directive.rule.block.try &.call(parent_context)
-
-          puts "---2"
-          pp parent_context
         else
           # set flag
           directive.set_have_tried_lr_flag
@@ -327,9 +316,6 @@ module Merlin
 
       if cached_context.nil?
         puts "#{padding}┌trying :#{target_ident}"
-
-        # advance this directive
-        # directive.next_target(error: false)
 
         # insert new directive
         new_ignores = compute_new_ignores(
