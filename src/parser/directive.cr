@@ -17,7 +17,7 @@ module Merlin
     getter current_ignores          : Array(IdentT)
     getter current_trailing_ignores : Array(IdentT)
 
-    delegate name, to: @group
+    #delegate name, to: @group
 
     private def initialize(
       @started_at               : Int32,
@@ -60,7 +60,7 @@ module Merlin
     end
 
     def reset_context : Nil
-      @context.try(&.reset(name))
+      @context.try(&.reset(@group.name))
     end
 
     def add_to_context(
@@ -133,9 +133,10 @@ module Merlin
           "Cannot advance further, reached end of" +
           "#{@lr ? "lr" : ""} rules.") if error
       else
-        reset_context   # reset context
-        @rule_i += 1    # inc rule
-        @pattern_i = 0  # reset pattern
+        reset_context            # reset context
+        @state = State::Waiting  # reset state
+        @rule_i += 1             # inc rule
+        @pattern_i = 0           # reset pattern
       end
     end
 

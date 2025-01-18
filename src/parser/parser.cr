@@ -131,7 +131,10 @@ module Merlin
       return directive.context.result if parent_directive.nil? # final result
 
       if parent_directive.rule.pattern.size > 1 || parent_directive.lr?
-        parent_directive.context.add(directive.name, directive.context)
+        parent_directive.context.add(
+          directive.group.name,
+          directive.context
+        )
       else
         parent_directive.context.merge(directive.context)
       end
@@ -154,26 +157,61 @@ module Merlin
       puts [
         "#{padding}└#{"\033[92;48;5;83;30m"}matched#{"\033[m"} ",
         directive.lr? ? "lr " : "",
-        ":#{directive.name}",
+        ":#{directive.context.name}",
       ].join
 
       if directive.lr?
-        # remove as we're done with this directive
-        @parsing_queue.pop
+        if directive.have_tried_lr?
+          # remove as we're done with this directive
+          @parsing_queue.pop
+  
+          # get parent directive
+          parent_directive = @parsing_queue[-1]
+          raise Error::Severe.new("No parent directive for lr") if parent_directive.nil?
+  
+          # merge parent context into self context
+          self_context = directive.context
+          parent_context = parent_directive.context
 
-        # get parent directive
-        parent_directive = @parsing_queue[-1]
-        raise Error::Severe.new("No parent directive for lr") if parent_directive.nil?
+          pp parent_context  # stmts
+          pp self_context    # stmt
 
-        # merge parent context into self context
-        parent_directive.context.subcontext_self
-        directive.context.merge(parent_directive.context)
+          # wrap
+          parent_context.flatten
+          parent_context.subcontext_self
 
-        # execute block on context
-        directive.rule.block.try &.call(directive.context)
+          # wrap fix for single pattern
+          if directive.pattern.size == 1
+            self_context.subcontext_self(as_key: directive.pattern[0])
+          end
 
-        # replace parent context
-        parent_directive.context = directive.context
+          parent_context.merge(self_context, clone: false)
+          #self_context.merge(parent_context, clone: false)
+          #parent_context = self_context
+
+          puts "---1"
+          pp parent_context
+  
+          # execute block on context
+          directive.rule.block.try &.call(parent_context)
+
+          puts "---2"
+          pp parent_context
+        else
+          # set flag
+          directive.set_have_tried_lr_flag
+
+          # create lr directive
+          @parsing_queue << Directive(IdentT, NodeT).new(
+            started_at: @parsing_position,
+            group: directive.group,
+            lr: true,
+            current_ignores: directive.current_ignores,
+            current_trailing_ignores: directive.current_trailing_ignores
+          )
+
+          return false  # stop loop
+        end
       elsif directive.have_tried_lr?
         @parsing_queue.pop
         return handle_parent_directive(directive, @parsing_queue[-1]?)
@@ -183,7 +221,7 @@ module Merlin
 
         # store in cache
         @cache.store(
-          ident: directive.name,
+          ident: directive.group.name,
           context: directive.context,
           start_position: directive.started_at,
           parsing_position: @parsing_position
@@ -191,7 +229,7 @@ module Merlin
 
         # check if we can try lr
         if directive.can_try_lr?
-          puts "#{padding}┌trying lr :#{directive.name}"
+          puts "#{padding}┌trying lr :#{directive.group.name}"
 
           # set flag
           directive.set_have_tried_lr_flag
@@ -212,7 +250,7 @@ module Merlin
           return handle_parent_directive(directive, @parsing_queue[-1]?)
         end
       end
-      return true  # contiinue loop
+      return true  # continue loop
     end
 
     private def post_parse_failed(
@@ -221,15 +259,14 @@ module Merlin
       padding = generate_log_padding(-1)
 
       # traverse back up the queue
-      can_advance = directive.can_advance_rule?
       puts [
         "#{padding}└failed ",
         directive.lr? ? "lr " : "",
-        ":#{directive.target_ident}@:#{directive.name}",
+        ":#{directive.target_ident}@:#{directive.group.name}",
       ].join
 
       # check if we can try a different rule
-      if can_advance
+      if directive.can_advance_rule?
         @parsing_position = directive.started_at
         directive.next_rule
         return false  # stop loop
@@ -246,16 +283,16 @@ module Merlin
           puts [
             "#{padding}└backtracked ",
             directive.lr? ? "from lr " : "",
-            "to :#{parent_directive.name}",
+            "to :#{parent_directive.group.name}",
           ].join
           @parsing_position = directive.started_at
-          if parent_directive.can_advance_rule?
+          if (parent_directive.have_tried_lr? && 
+              parent_directive.state == Directive::State::Matched)
+            return true  # continue loop
+          elsif parent_directive.can_advance_rule?
             parent_directive.next_rule
             return false  # stop loop
-          elsif !(
-                  parent_directive.state == Directive::State::Matched &&
-                  parent_directive.have_tried_lr?
-                )
+          else
             parent_directive.state = Directive::State::Failed
           end
         end

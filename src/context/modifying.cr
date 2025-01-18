@@ -170,7 +170,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def add(
-    key : IdentT?,
+    key : IdentT,
     value : Context(IdentT, NodeT),
     clone : Bool = true
   ) : Nil
