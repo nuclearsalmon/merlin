@@ -17,21 +17,6 @@ module Merlin
     getter current_ignores          : Array(IdentT)
     getter current_trailing_ignores : Array(IdentT)
 
-    #delegate name, to: @group
-
-    private def initialize(
-      @started_at               : Int32,
-      @group                    : Group(IdentT, NodeT),
-      @lr                       : Bool,
-      @rule_i                   : Int32,
-      @pattern_i                : Int32,
-      @context                  : Context(IdentT, NodeT)?,
-      @state                    : State,
-      @current_ignores          : Array(IdentT),
-      @current_trailing_ignores : Array(IdentT)
-    )
-    end
-
     def initialize(
       @started_at               : Int32,
       @group                    : Group(IdentT, NodeT),
@@ -39,20 +24,6 @@ module Merlin
       @current_ignores          : Array(IdentT),
       @current_trailing_ignores : Array(IdentT)
     )
-    end
-
-    def clone : Directive(IdentT, NodeT)
-      Directive.new(
-        @started_at,
-        @group,
-        @lr,
-        @rule_i,
-        @pattern_i,
-        @context.try(&.clone),
-        @state,
-        @current_ignores.dup,
-        @current_trailing_ignores.dup
-      )
     end
 
     def context : Context(IdentT, NodeT)
@@ -101,24 +72,24 @@ module Merlin
       pattern[@pattern_i]
     end
 
+    def can_try_lr? : Bool
+      !@have_tried_lr && !@lr && !@group.lr_rules.empty?
+    end
+
     def can_advance_pattern? : Bool
       @pattern_i + 1 < pattern.size
+    end
+
+    def end_of_pattern? : Bool
+      !can_advance_pattern?
     end
 
     def can_advance_rule? : Bool
       @rule_i + 1 < rules.size
     end
 
-    def can_try_lr? : Bool
-      !@have_tried_lr && !@lr && !@group.lr_rules.empty?
-    end
-
-    def end_of_pattern? : Bool
-      @pattern_i + 1 >= rule.pattern.size
-    end
-
     def end_of_rule? : Bool
-      @rule_i + 1 >= rules.size
+      !can_advance_rule?
     end
 
     def set_have_tried_lr_flag : Nil

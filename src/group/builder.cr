@@ -89,16 +89,16 @@ module Merlin
       rule(Rule(IdentT, NodeT).new(pattern.to_a, block))
     end
 
-    def rule(
-        pattern : Array(IdentT)) : Nil
-      rule(Rule(IdentT, NodeT).new(pattern, nil))
-    end
+    #def rule(
+    #    pattern : Array(IdentT)) : Nil
+    #  rule(Rule(IdentT, NodeT).new(pattern, nil))
+    #end
 
-    def rule(
-        pattern : Array(IdentT),
-        &block : Proc(Context(IdentT, NodeT), Nil)) : Nil
-      rule(Rule(IdentT, NodeT).new(pattern, block))
-    end
+    #def rule(
+    #    pattern : Array(IdentT),
+    #    &block : Proc(Context(IdentT, NodeT), Nil)) : Nil
+    #  rule(Rule(IdentT, NodeT).new(pattern, block))
+    #end
 
     def noignore() : Nil
       @noignores ||= Array(IdentT).new
