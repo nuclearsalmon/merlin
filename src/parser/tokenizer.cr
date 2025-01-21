@@ -1,6 +1,4 @@
 module Merlin::Tokenizer(IdentT)
-  Log = ::Log.for("lang.tokenizer")
-
   def tokenize(
       str : String,
       filename : String? = nil) : Array(MatchedToken(IdentT))
@@ -14,8 +12,7 @@ module Merlin::Tokenizer(IdentT)
 
         # get value, first from group if exist, otherwise
         # from entire pattern
-        value = mdata[1]?
-        value = mdata[0] if value.nil?
+        value : String = mdata[1]? || mdata[0]
 
         # create token
         position = Position.new(row, col, filename)

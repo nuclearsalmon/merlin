@@ -51,7 +51,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
       }
 
       iterations += 1
-      if iterations >= reference_recursion_limit
+      if iterations >= @reference_recursion_limit
         raise Error::SyntaxFault.new(
           "Potentially infinite recursion detected" +
           "from group ':#{from_group}'.")

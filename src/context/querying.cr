@@ -14,10 +14,10 @@ class Merlin::Context(IdentT, NodeT)
 
     sub_contexts = @sub_contexts
     raise Error::ASTFault.new(
-      "Expected subcontext :#{key} for :#{self.name_s} " +
+      "Expected subcontext :#{key} for :#{@name} " +
       "not found. " +
       ((sub_contexts.nil? || sub_contexts.empty?) ?
-       ("(:#{self.name_s} has no subcontexts. If this rule is a " +
+       ("(:#{@name} has no subcontexts. If this rule is a " +
         "single pattern, use the main context)") :
        "") +
       "\n#{self.pretty_inspect}.")
@@ -29,7 +29,7 @@ class Merlin::Context(IdentT, NodeT)
 
   def node(index : Int32 = 0) : NodeT
     node?(index) || raise Error::ASTFault.new(
-      "Expected node for :#{self.name_s} not found. " +
+      "Expected node for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
 
@@ -39,7 +39,7 @@ class Merlin::Context(IdentT, NodeT)
 
   def nodes : Array(NodeT)
     nodes? || raise Error::ASTFault.new(
-      "Expected nodes for :#{self.name_s} not found.
+      "Expected nodes for :#{@name} not found.
       #{self.pretty_inspect}.")
   end
 
@@ -49,7 +49,7 @@ class Merlin::Context(IdentT, NodeT)
 
   def token(index : Int32 = 0) : MatchedToken(IdentT)
     token?(index) || raise Error::ASTFault.new(
-      "Expected token for :#{self.name_s} not found. " +
+      "Expected token for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
 
@@ -59,7 +59,7 @@ class Merlin::Context(IdentT, NodeT)
 
   def tokens : Array(MatchedToken(IdentT))
     tokens? || raise Error::ASTFault.new(
-      "Expected tokens for :#{self.name_s} not found. " +
+      "Expected tokens for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
 
