@@ -52,24 +52,24 @@ class Merlin::Context(IdentT, NodeT)
     end
   end
 
-  def flatten : Nil
+  def flatten(overwrite_subcontexts : Bool = true) : Nil
     @sub_contexts.try(&.each { |key, context|
       drop_context(key)
-      context.flatten
-      merge(context, clone: false)
+      context.flatten(overwrite_subcontexts)
+      merge(context, clone: false, overwrite_subcontexts: overwrite_subcontexts)
     })
   end
 
-  def absorb(key : IdentT?) : Nil
+  def absorb(key : IdentT?, overwrite_subcontexts : Bool = true) : Nil
     context = self[key]
     drop_context(key)
-    merge(context, clone: false)
+    merge(context, clone: false, overwrite_subcontexts: overwrite_subcontexts)
   end
 
-  def become(key : IdentT?) : Nil
+  def become(key : IdentT?, overwrite_subcontexts : Bool = true) : Nil
     context = self[key]
     reset(key)
-    merge(context, clone: false)
+    merge(context, clone: false, overwrite_subcontexts: overwrite_subcontexts)
   end
 
   def become(value : NodeT | MatchedToken(IdentT)) : Nil
@@ -119,16 +119,20 @@ class Merlin::Context(IdentT, NodeT)
 
   def merge(
     from : Context(IdentT, NodeT),
-    clone : Bool = true
+    clone : Bool = true,
+    overwrite_subcontexts : Bool = true
   ) : Nil
     unless (from_sub_contexts = from.@sub_contexts).nil? || from_sub_contexts.empty?
-      if clone
-        from_sub_contexts = from_sub_contexts.clone
-      end
+      from_sub_contexts = from_sub_contexts.clone if clone
+
       if (sub_contexts = @sub_contexts).nil?
         @sub_contexts = from_sub_contexts
-      else
+      elsif overwrite_subcontexts
         sub_contexts.merge!(from_sub_contexts)
+      else
+        sub_contexts.merge!(from_sub_contexts) do |key, old_value, new_value|
+          old_value.merge(new_value, clone: clone); old_value
+        end
       end
     end
 
@@ -168,7 +172,8 @@ class Merlin::Context(IdentT, NodeT)
   def add(
     key : IdentT,
     value : Context(IdentT, NodeT),
-    clone : Bool = true
+    clone : Bool = true,
+    overwrite_subcontexts : Bool = true
   ) : Nil
     sub_contexts = @sub_contexts
     if sub_contexts.nil?
@@ -180,7 +185,7 @@ class Merlin::Context(IdentT, NodeT)
       if sub_context.nil?
         sub_contexts[key] = (clone ? value.clone : value)
       else
-        sub_context.merge(value, clone: clone)
+        sub_context.merge(value, clone: clone, overwrite_subcontexts: overwrite_subcontexts)
       end
     end
   end

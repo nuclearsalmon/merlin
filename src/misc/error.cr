@@ -22,12 +22,12 @@ module Merlin::Error
     end
   end
 
-  class ASTFault < Severe
+  class AstFault < Severe
     def initialize(
         message : String,
         cause : Exception? = nil)
       new_message = (
-        "An error occured when building AST." +
+        "An error occured when building Ast." +
         (message.nil? ? "" : " #{message}"))
       super(new_message, cause)
     end

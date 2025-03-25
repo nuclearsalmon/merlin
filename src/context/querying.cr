@@ -13,7 +13,7 @@ class Merlin::Context(IdentT, NodeT)
     return node unless node.nil?
 
     sub_contexts = @sub_contexts
-    raise Error::ASTFault.new(
+    raise Error::AstFault.new(
       "Expected subcontext :#{key} for :#{@name} " +
       "not found. " +
       ((sub_contexts.nil? || sub_contexts.empty?) ?
@@ -28,7 +28,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def node(index : Int32 = 0) : NodeT
-    node?(index) || raise Error::ASTFault.new(
+    node?(index) || raise Error::AstFault.new(
       "Expected node for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -38,7 +38,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def nodes : Array(NodeT)
-    nodes? || raise Error::ASTFault.new(
+    nodes? || raise Error::AstFault.new(
       "Expected nodes for :#{@name} not found.
       #{self.pretty_inspect}.")
   end
@@ -48,7 +48,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def token(index : Int32 = 0) : MatchedToken(IdentT)
-    token?(index) || raise Error::ASTFault.new(
+    token?(index) || raise Error::AstFault.new(
       "Expected token for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -58,7 +58,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def tokens : Array(MatchedToken(IdentT))
-    tokens? || raise Error::ASTFault.new(
+    tokens? || raise Error::AstFault.new(
       "Expected tokens for :#{@name} not found. " +
       "#{self.pretty_inspect}.")
   end
@@ -77,22 +77,22 @@ class Merlin::Context(IdentT, NodeT)
     _sub_contexts = @sub_contexts
 
     unless _tokens.nil? || _tokens.empty?
-      raise Error::ASTFault.new(
+      raise Error::AstFault.new(
         "Root must return no tokens. #{pretty_inspect}")
     end
 
     unless _sub_contexts.nil? || _sub_contexts.empty?
-      raise Error::ASTFault.new(
+      raise Error::AstFault.new(
         "Root must return no subcontexts. #{pretty_inspect}")
     end
 
     if _nodes.nil? || _nodes.size < 1
-      raise Error::ASTFault.new(
+      raise Error::AstFault.new(
         "Root returned no Nodes. #{pretty_inspect}")
     end
 
     if _nodes.size > 1
-      raise Error::ASTFault.new(
+      raise Error::AstFault.new(
         "Root returned more than one Node. #{pretty_inspect}")
     end
 
@@ -141,11 +141,11 @@ class Merlin::Context(IdentT, NodeT)
     position = position?(lowest)
     if position.nil?
       if empty?
-        raise Error::ASTFault.new(
+        raise Error::AstFault.new(
           "Could not find a context position, " +
           "because it is empty.")
       else
-        raise Error::ASTFault.new(
+        raise Error::AstFault.new(
           "Could not find a context position, " +
           "yet context is not empty.")
       end

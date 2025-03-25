@@ -14,6 +14,10 @@ module Merlin
     value : String,
     position : Position do
 
+    def value_position
+      {value: @value, position: @position}
+    end
+
     def to_s
       "#{@name}(#{@value.inspect}) @ #{@position.to_s}"
     end
