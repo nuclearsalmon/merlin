@@ -1,30 +1,4 @@
 module Merlin::ParserLogic(IdentT, NodeT)
-  def parse(@parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
-    initialize_for_parsing
-
-    # parse
-    result_node = do_parse
-
-    if result_node.nil?
-      raise Error::BadInput.new("Parsing failed to match anything.")
-    end
-
-    # verify that every token was consumed
-    position = @parsing_position
-    if position < @parsing_tokens.size
-      Log.debug { [
-        "Got #{result_node.pretty_inspect}, but only matched ",
-        "#{position}/#{@parsing_tokens.size} tokens.",
-      ].join }
-      raise Error::UnexpectedCharacter.new(
-        @parsing_tokens[position].value[0],
-        @parsing_tokens[position].position)
-    end
-
-    # done parsing
-    result_node
-  end
-
   private def initialize_for_parsing : Nil
     # clear before parsing
     @parsing_position = 0
@@ -41,6 +15,30 @@ module Merlin::ParserLogic(IdentT, NodeT)
       current_ignores: initial_ignores,
       current_trailing_ignores: initial_trailing_ignores
     )
+  end
+
+  def parse(@parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
+    initialize_for_parsing
+    result_node = do_parse
+
+    # verify that we got a result
+    raise Error::BadInput.new(
+      "Parsing failed to match anything."
+    ) if result_node.nil?
+    
+    # verify that every token was consumed
+    if @parsing_position < @parsing_tokens.size
+      Log.debug { [
+        "Got #{result_node.pretty_inspect}, but only matched ",
+        "#{@parsing_position}/#{@parsing_tokens.size} tokens.",
+      ].join }
+      raise Error::UnexpectedCharacter.new(
+        @parsing_tokens[@parsing_position].value[0],
+        @parsing_tokens[@parsing_position].position)
+    end
+
+    # done parsing
+    result_node
   end
 
   private def do_parse : NodeT?
@@ -71,45 +69,48 @@ module Merlin::ParserLogic(IdentT, NodeT)
       in Directive::State::Matched
         result = post_parse_matched(directive)
         return result if result.is_a?(NodeT)
-        return nil unless result # continue loop if result is false
+        break unless result # continue loop if result is false
       in Directive::State::Failed
         result = post_parse_failed(directive)
-        return nil unless result # continue loop if result is false
+        break unless result # continue loop if result is false
       end
     end
     return nil
   end
 
   private def handle_parent_directive(directive, parent_directive) : NodeT | Bool
-    return directive.context.result if parent_directive.nil? # final result
+    return directive.context.result if parent_directive.nil?  # final result
 
+    # decide whether to add or merge
     if parent_directive.rule.pattern.size > 1 || parent_directive.lr?
-      parent_directive.context.add(
-        directive.group.name,
-        directive.context
-      )
+      parent_directive.context.add(directive.group.name, directive.context)
     else
       parent_directive.context.merge(directive.context)
     end
 
     if parent_directive.end_of_pattern?
       parent_directive.state = Directive::State::Matched
-      return true  # continue processing the current directive
+      true  # continue processing the current directive
     else
       parent_directive.next_target
-      return false  # continue the loop
+      false  # continue the loop
     end
+  end
+
+  private def store_in_cache(directive : Directive(IdentT, NodeT)) : Nil
+    @cache.store(
+      ident: directive.group.name,
+      context: directive.context,
+      start_position: directive.started_at,
+      parsing_position: @parsing_position
+    )
   end
 
   private def post_parse_matched(
     directive : Directive(IdentT, NodeT)
   ) : NodeT | Bool
     consume_trailing_ignores(directive.current_trailing_ignores)
-
-    self.debugger.log_matched(
-      directive.context.name, 
-      lr: directive.lr?
-    )
+    self.debugger.log_matched(directive.context.name, lr: directive.lr?)
 
     if directive.lr?
       # remove as we're done with this directive
@@ -119,59 +120,35 @@ module Merlin::ParserLogic(IdentT, NodeT)
       parent_directive = @parsing_queue[-1]
       raise Error::Severe.new("Missing parent directive for lr") if parent_directive.nil?
 
-      # prepare to inject/merge self context into parent context
-      self_context = directive.context
+      # Prepare parent context
       parent_context = parent_directive.context
-
-      # wrap
       parent_context.flatten
       parent_context.subcontext_self
 
-      # wrap fix for single pattern
+      # Handle single pattern case
       if directive.pattern.size == 1
-        self_context.subcontext_self(as_key: directive.pattern[0])
+        directive.context.subcontext_self(as_key: directive.pattern[0])
       end
 
-      # inject/merge self context into parent context
-      parent_context.merge(self_context, clone: false)
-
-      # execute this directive's block on the final (parent)context
+      # Merge contexts and execute block
+      parent_context.merge(directive.context, clone: false)
       directive.rule.block.try &.call(parent_context)
-      # the parent is now complete
 
       # cache the updated parent context
-      @cache.store(
-        ident: parent_directive.group.name,
-        context: parent_context,
-        start_position: parent_directive.started_at,
-        parsing_position: @parsing_position
-      )
-
-      return true  # we've reached the end of the directive
+      store_in_cache(parent_directive)
+      true  # we've reached the end of the directive
     elsif directive.have_tried_lr?
       @parsing_queue.pop
-      return handle_parent_directive(directive, @parsing_queue[-1]?)
+      handle_parent_directive(directive, @parsing_queue[-1]?)
     else
-      # execute block on context
+      # Execute block and store in cache
       directive.rule.block.try &.call(directive.context)
+      store_in_cache(directive)
 
-      # store in cache
-      @cache.store(
-        ident: directive.group.name,
-        context: directive.context,
-        start_position: directive.started_at,
-        parsing_position: @parsing_position
-      )
-
-      # check if we can try lr
+      # Try LR if possible
       if (@parsing_position != @parsing_tokens.size) && directive.can_try_lr?
-        self.debugger.log_trying(
-          directive.group.name, 
-          lr: true
-        )
-
-        # set flag
-        directive.set_have_tried_lr_flag
+        self.debugger.log_trying(directive.group.name, lr: true)
+        directive.set_have_tried_lr_flag  # set flag
 
         # create lr directive
         @parsing_queue << Directive(IdentT, NodeT).new(
@@ -181,15 +158,13 @@ module Merlin::ParserLogic(IdentT, NodeT)
           current_ignores: directive.current_ignores,
           current_trailing_ignores: directive.current_trailing_ignores
         )
-
-        return false # stop loop
+        false
       else
         # remove as we're done with this directive
         @parsing_queue.pop
-        return handle_parent_directive(directive, @parsing_queue[-1]?)
+        handle_parent_directive(directive, @parsing_queue[-1]?)
       end
     end
-    return true # continue loop
   end
 
   private def post_parse_failed(
@@ -220,7 +195,6 @@ module Merlin::ParserLogic(IdentT, NodeT)
           to_key: parent_directive.group.name,
           from_lr: directive.lr?
         )
-
 
         @parsing_position = directive.started_at
         if (parent_directive.have_tried_lr? &&
