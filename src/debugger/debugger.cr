@@ -6,10 +6,10 @@ class Merlin::Debugger(IdentT, NodeT)
   property step_field_stack_depth    = false
   property step_field_token_number   = false
   property step_field_token_position = false
-  property step_field_token_name     = false
-  property step_field_trying_group   = false
-  property step_field_failed         = false
-  property step_field_matched        = false
+  property step_field_token_name     = true
+  property step_field_trying_group   = true
+  property step_field_failed         = true
+  property step_field_matched        = true
   property step_field_backtracked    = false
 
   # ansi highlights
@@ -62,7 +62,7 @@ class Merlin::Debugger(IdentT, NodeT)
     @max_token_position_len = max_token_position_row_len + max_token_position_col_len + 1
   end
 
-  private def log_line(
+  private def _log_line(
     step_str : String, 
     step_padding_prefix : String = SEPARATOR,
     step_offset : Int = -1
@@ -100,12 +100,16 @@ class Merlin::Debugger(IdentT, NodeT)
     puts line
   end
 
+  def log_line(line : String) : Nil
+    _log_line(step_str: line)
+  end
+
   def log_trying(
     key : IdentT,
     lr : Bool = false
   ) : Nil
     highlight = @highlight_trying_group  # local copy state
-    log_line(
+    _log_line(
       [
         highlight ? ANSI_HIGHLIGHT : "",
         "trying",
@@ -123,7 +127,7 @@ class Merlin::Debugger(IdentT, NodeT)
     lr : Bool = false
   ) : Nil
     highlight = @highlight_failed  # local copy state
-    log_line(
+    _log_line(
       [
         highlight ? ANSI_HIGHLIGHT : "",
         "failed",
@@ -141,7 +145,7 @@ class Merlin::Debugger(IdentT, NodeT)
     from_cache : Bool = false
   ) : Nil
     highlight = @highlight_matched  # local copy state
-    log_line(
+    _log_line(
       [
         highlight ? ANSI_HIGHLIGHT : "",
         "matched",
@@ -160,7 +164,7 @@ class Merlin::Debugger(IdentT, NodeT)
     from_lr : Bool,
   ) : Nil
     highlight = @highlight_backtracked  # local copy state
-    log_line(
+    _log_line(
       [
         highlight ? ANSI_HIGHLIGHT : "",
         "backtracked",
@@ -175,7 +179,7 @@ class Merlin::Debugger(IdentT, NodeT)
 
   def log_halted_backtracking
     highlight = @highlight_backtracked  # local copy state
-    log_line(
+    _log_line(
       [
         highlight ? ANSI_HIGHLIGHT : "",
         "halted backtracking, there are no more directives",

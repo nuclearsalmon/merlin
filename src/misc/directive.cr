@@ -93,8 +93,13 @@ module Merlin
     end
 
     def set_have_tried_lr_flag : Nil
-      raise Error::Severe.new("Already tried lr") if @have_tried_lr
+      raise Error::Severe.new("LR flag already set") if @have_tried_lr
       @have_tried_lr = true
+    end
+
+    def unset_have_tried_lr_flag : Nil
+      raise Error::Severe.new("LR flag already unset") unless @have_tried_lr
+      @have_tried_lr = false
     end
 
     def next_rule(error : Bool = true) : Nil

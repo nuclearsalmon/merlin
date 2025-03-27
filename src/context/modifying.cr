@@ -131,7 +131,7 @@ class Merlin::Context(IdentT, NodeT)
         sub_contexts.merge!(from_sub_contexts)
       else
         sub_contexts.merge!(from_sub_contexts) do |key, old_value, new_value|
-          old_value.merge(new_value, clone: clone); old_value
+          old_value.merge(new_value, clone: clone, overwrite_subcontexts: false); old_value
         end
       end
     end
