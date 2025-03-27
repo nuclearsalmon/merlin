@@ -1,7 +1,7 @@
 name: merlin
 version: 0.1.4
 
-crystal: '>= 1.12.2'
+crystal: '>= 1.15.1'
 
 description: |
   A parser library to create AST nodes from syntax descriptions ✨
