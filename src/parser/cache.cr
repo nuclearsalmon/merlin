@@ -42,9 +42,6 @@ module Merlin
       prev_entry = location[ident]?
 
       if prev_entry.nil? || (nr_of_tokens >= prev_entry[:nr_of_tokens])
-        #puts "==="
-        #puts "storing #{ident} at #{start_position}, consisting of #{nr_of_tokens} tokens"
-        #puts "==="
         location[ident] = new_location_entry(context.clone, nr_of_tokens)
       end
     end
