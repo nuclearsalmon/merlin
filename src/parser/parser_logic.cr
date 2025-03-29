@@ -183,9 +183,10 @@ module Merlin::ParserLogic(IdentT, NodeT)
       lr: directive.lr?
     )
 
+    @parsing_position = directive.started_at
+
     # traverse back up the queue, check if we can try a different rule
     if directive.can_advance_rule?
-      @parsing_position = directive.started_at
       directive.next_rule
       return false
     else
@@ -203,12 +204,12 @@ module Merlin::ParserLogic(IdentT, NodeT)
           from_lr: directive.lr?
         )
 
-        @parsing_position = directive.started_at
         if (parent_directive.have_tried_lr? &&
            parent_directive.state == Directive::State::Matched)
           return true
         elsif parent_directive.can_advance_rule?
           parent_directive.next_rule
+          @parsing_position = parent_directive.started_at
           return false
         else
           parent_directive.state = Directive::State::Failed
