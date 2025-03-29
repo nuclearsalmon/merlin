@@ -45,7 +45,7 @@ module Merlin::ParserLogic(IdentT, NodeT)
     loop do
       directive = @parsing_queue[-1]?
       break if directive.nil?
-      
+
       # parse one step
       if Util.upcase?(directive.target_ident)
         parse_token(directive)
@@ -149,7 +149,7 @@ module Merlin::ParserLogic(IdentT, NodeT)
       # cache the updated parent context
       store_in_cache(parent_directive)
 
-      create_lr_directive(parent_directive)
+      create_lr_directive(parent_directive) unless next_token().nil?
       false
     elsif directive.have_tried_lr?
       @parsing_queue.pop
@@ -160,7 +160,7 @@ module Merlin::ParserLogic(IdentT, NodeT)
       store_in_cache(directive)
 
       # Try LR if possible
-      if (@parsing_position < @parsing_tokens.size) && directive.can_try_lr?
+      if !next_token().nil? && directive.can_try_lr?
         self.debugger.log_trying(directive.group.name, lr: true)
         directive.set_have_tried_lr_flag  # set flag
 
@@ -254,13 +254,18 @@ module Merlin::ParserLogic(IdentT, NodeT)
         directive.current_trailing_ignores,
         @groups[target_ident]
       )
+
       @parsing_queue << Directive(IdentT, NodeT).new(
         started_at: @parsing_position,
         group: @groups[target_ident],
         lr: false,
         current_ignores: new_ignores,
         current_trailing_ignores: new_trailing_ignores
-      )
+      ) unless next_token().nil?
+      # FIXME: the "unless" clause here is a performance hack to 
+      # avoid creating a new directive if there are no more tokens.
+      # This does seem to work but could have unforeseen side effects.
+      # Ideally this should be handled before attempting to parse a group.
     else
       self.debugger.log_matched(
         target_ident,

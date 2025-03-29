@@ -35,13 +35,17 @@ class Merlin::Parser(IdentT, NodeT)
     detect_unused_groups
   end
 
+  private def next_token() : MatchedToken(IdentT)?
+    @parsing_tokens[@parsing_position]?
+  end
+
   private def next_token(
-    computed_ignores : Array(IdentT)?
+    computed_ignores : Array(IdentT)
   ) : MatchedToken(IdentT)?
     loop do
       token = @parsing_tokens[@parsing_position]?
       @parsing_position += 1
-      if token.nil? || computed_ignores.nil? || !(computed_ignores.includes?(token.name))
+      if token.nil? || !(computed_ignores.includes?(token.name))
         return token
       end
     end
