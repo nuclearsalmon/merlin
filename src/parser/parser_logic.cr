@@ -66,7 +66,14 @@ module Merlin::ParserLogic(IdentT, NodeT)
       case directive.state
       in Directive::State::Waiting
         consume_trailing_ignores(directive.current_ignores)
-        break
+
+        if next_token.nil?
+          directive.state = Directive::State::Failed
+          result = post_parse_failed(directive)
+          break unless result # continue loop if result is false
+        else
+          break
+        end
       in Directive::State::Matched
         result = post_parse_matched(directive)
         return result if result.is_a?(NodeT)
@@ -244,6 +251,10 @@ module Merlin::ParserLogic(IdentT, NodeT)
 
     if cached_context.nil?
       self.debugger.log_trying(target_ident)
+
+      if next_token.nil?
+        raise Exception.new("No more tokens to parse")
+      end
 
       # insert new directive
       new_ignores = compute_new_ignores(
