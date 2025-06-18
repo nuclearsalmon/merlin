@@ -28,9 +28,9 @@ module Merlin
     end
 
     def initialize(
-        @row : Int32 = -1,
-        @col : Int32 = -1,
-        @filename : String? = nil)
+      @row : Int32 = -1,
+      @col : Int32 = -1,
+      @filename : String? = nil)
     end
 
     def initialize(@filename : String)
@@ -39,9 +39,10 @@ module Merlin
     end
 
     def clone(
-        row : Int32 = @row,
-        col : Int32 = @col,
-        filename : String? = @filename) : self
+      row : Int32 = @row,
+      col : Int32 = @col,
+      filename : String? = @filename
+    ) : self
       self.class.new(row, col, filename)
     end
 
