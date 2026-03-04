@@ -22,6 +22,7 @@ module Merlin::ParserLogic(IdentT, NodeT)
 
   def parse(@parsing_tokens : Deque(MatchedToken(IdentT))) : NodeT
     initialize_for_parsing
+    self.debugger.initialize_inspector if self.debugger.enabled
     result_node = do_parse
 
     # verify that we got a result
@@ -29,8 +30,6 @@ module Merlin::ParserLogic(IdentT, NodeT)
       "Parsing failed to match anything."
     ) if result_node.nil?
 
-    puts result_node.as(NodeT).to_s
-    
     # verify that every token was consumed
     if @parsing_position < @parsing_tokens.size
       self.debugger.log_line([

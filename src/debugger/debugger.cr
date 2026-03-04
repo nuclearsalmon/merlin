@@ -1,42 +1,25 @@
 class Merlin::Debugger(IdentT, NodeT)
-  ANSI_RESET = "\x1b[m"
+  ANSI_RESET     = "\x1b[m"
   ANSI_HIGHLIGHT = "\x1b[38;2;253;134;42;3m"
+  SEPARATOR      = "│"
 
-  # step fields
-  property step_field_stack_depth    = false
-  property step_field_token_number   = false
-  property step_field_token_position = false
-  property step_field_token_name     = true
-  property step_field_trying_group   = true
-  property step_field_failed         = true
-  property step_field_matched        = true
-  property step_field_backtracked    = false
+  property enabled          = false
+  property show_trying      = true
+  property show_matched     = true
+  property show_failed      = true
+  property show_backtracked = false
 
-  # ansi highlights
-  property highlight_trying_group   = true
-  property highlight_failed         = true
-  property highlight_matched        = true
-  property highlight_backtracked    = true
+  property max_depth      = -1
+  property only_groups    = [] of String
+  property exclude_groups = [] of String
 
-  # filters
-  property filter_stack_depth    = -1
-  property filter_token_number   = -1
-  property filter_token_position = -1
-  property filter_token_name     = ""
-  property filter_parent_group   = ""
+  property padding            = true
+  property fancy_padding      = true
+  property show_current_token = true
+  property highlight          = true
 
-  # actions
-  property show_steps        = true
-  property pad_steps         = true
-  property fancy_padding     = true
-  property show_tokenization = false
-  property show_ast          = false
-
-  SEPARATOR = "│"
-
+  @inspector_initialized = false
   @max_token_name_len = 0
-  @max_token_number_len = 0
-  @max_token_position_len = 0
 
   @parser : Parser(IdentT, NodeT)
 
@@ -45,80 +28,71 @@ class Merlin::Debugger(IdentT, NodeT)
 
   def initialize_inspector
     @max_token_name_len = [
-      @parser.tokens.values.map { |token| token.name.size }.max,
-      @parser.groups.values.map { |group| group.name.size }.max,
-      @parser.root.name.size
+      @parser.tokens.values.map { |t| t.name.to_s.size }.max,
+      @parser.groups.values.map { |g| g.name.to_s.size }.max,
+      @parser.root.name.to_s.size,
     ].compact.max
-
-    @max_token_number_len = @parser.parsing_tokens.size.to_s.size
-    max_token_position_row_len = @parser.parsing_tokens.map { |token| 
-      token.position.row.to_s.size
-    }.max
-
-    max_token_position_col_len = @parser.parsing_tokens.map { |token| 
-      token.position.col.to_s.size
-    }.max
-
-    @max_token_position_len = max_token_position_row_len + max_token_position_col_len + 1
+    @inspector_initialized = true
   end
 
-  private def _log_line(
-    step_str : String, 
-    step_padding_prefix : String = SEPARATOR,
-    step_offset : Int = -1
+  private def depth : Int32
+    @parser.parsing_queue.size
+  end
+
+  private def should_log? : Bool
+    return false unless @enabled
+    @max_depth < 0 || depth <= @max_depth
+  end
+
+  private def should_log?(group_key : IdentT) : Bool
+    return false unless should_log?
+    name = group_key.to_s
+    return false if !@only_groups.empty? && !@only_groups.includes?(name)
+    return false if @exclude_groups.includes?(name)
+    true
+  end
+
+  private def current_token_name : String
+    token = @parser.parsing_tokens[@parser.parsing_position]?
+    token ? token.name.to_s : "<EOL>"
+  end
+
+  private def emit(
+    text : String,
+    prefix : String = SEPARATOR,
+    depth_offset : Int32 = -1
   ) : Nil
-    return unless @show_steps 
-    step = @parser.parsing_queue.size + step_offset
-    current_token = @parser.parsing_tokens[@parser.parsing_position]? || MatchedToken(Symbol).new(
-      name: :"<EOL>",
-      value: "",
-      position: Position.new(@parser.parsing_tokens[-1].position.row, @parser.parsing_tokens[-1].position.col + 1)
-    )
+    initialize_inspector unless @inspector_initialized
+    step = depth + depth_offset
 
-    line = [
-      @pad_steps ? [
-        (@fancy_padding ? SEPARATOR : " ") * Math.max(step - 1, 0),
-        step_padding_prefix
-      ].join : "",
-      step_str,
-      @step_field_stack_depth ? "#{step.to_s.rjust(step.to_s.size)}" : "",
-      @step_field_token_number ? (
-        "#{SEPARATOR} #{@parser.parsing_position.to_s.rjust(
-          @max_token_number_len*2+1)}/#{@max_token_number_len}"
-      ) : "",
-      @step_field_token_position ? (
-        "#{SEPARATOR} #{
-          "#{current_token.position.row},#{current_token.position.col}"
-          .rjust(@max_token_position_len)
-        }"
-      ) : "",
-      @step_field_token_name ? (
-        "#{SEPARATOR} #{current_token.name.to_s.ljust(@max_token_name_len)}"
-      ) : ""
-    ].join
+    io = String::Builder.new
+    if @padding
+      pad_char = @fancy_padding ? SEPARATOR : " "
+      Math.max(step - 1, 0).times { io << pad_char }
+      io << prefix
+    end
+    io << text
+    if @show_current_token
+      io << SEPARATOR << " " << current_token_name
+    end
+    puts io.to_s
+  end
 
-    puts line
+  private def hl(text : String) : String
+    @highlight ? "#{ANSI_HIGHLIGHT}#{text}#{ANSI_RESET}" : text
   end
 
   def log_line(line : String) : Nil
-    _log_line(step_str: line)
+    return unless should_log?
+    emit(text: line)
   end
 
-  def log_trying(
-    key : IdentT,
-    lr : Bool = false
-  ) : Nil
-    highlight = @highlight_trying_group  # local copy state
-    _log_line(
-      [
-        highlight ? ANSI_HIGHLIGHT : "",
-        "trying",
-        highlight ? ANSI_RESET : "",
-        lr ? " lr" : "",
-        " :#{key}"
-      ].join,
-      step_padding_prefix: "┌"
-    ) if @step_field_trying_group
+  def log_trying(key : IdentT, lr : Bool = false) : Nil
+    return unless @show_trying && should_log?(key)
+    emit(
+      text: "#{hl("trying")}#{lr ? " lr" : ""} :#{key}",
+      prefix: "┌"
+    )
   end
 
   def log_failed(
@@ -126,17 +100,11 @@ class Merlin::Debugger(IdentT, NodeT)
     group_key : IdentT,
     lr : Bool = false
   ) : Nil
-    highlight = @highlight_failed  # local copy state
-    _log_line(
-      [
-        highlight ? ANSI_HIGHLIGHT : "",
-        "failed",
-        highlight ? ANSI_RESET : "",
-        lr ? " lr" : "",
-        " :#{pattern_target_key}@:#{group_key}"
-      ].join,
-      step_offset: 0
-    ) if @step_field_failed
+    return unless @show_failed && should_log?(group_key)
+    emit(
+      text: "#{hl("failed")}#{lr ? " lr" : ""} :#{pattern_target_key}@:#{group_key}",
+      depth_offset: 0
+    )
   end
 
   def log_matched(
@@ -144,50 +112,31 @@ class Merlin::Debugger(IdentT, NodeT)
     lr : Bool = false,
     from_cache : Bool = false
   ) : Nil
-    highlight = @highlight_matched  # local copy state
-    _log_line(
-      [
-        highlight ? ANSI_HIGHLIGHT : "",
-        "matched",
-        highlight ? ANSI_RESET : "",
-        lr ? " lr" : "",
-        " :#{key}",
-        from_cache ? " from cache" : ""
-      ].join,
-      step_offset: 0
-    ) if @step_field_matched
-    # TODO: add ability to log/dump cache details
+    return unless @show_matched && should_log?(key)
+    emit(
+      text: "#{hl("matched")}#{lr ? " lr" : ""} :#{key}#{from_cache ? " from cache" : ""}",
+      depth_offset: 0
+    )
   end
 
   def log_backtracked(
     to_key : IdentT,
     from_lr : Bool,
   ) : Nil
-    highlight = @highlight_backtracked  # local copy state
-    _log_line(
-      [
-        highlight ? ANSI_HIGHLIGHT : "",
-        "backtracked",
-        from_lr ? " from lr" : "",
-        highlight ? ANSI_RESET : "",
-        " to :#{to_key}"
-      ].join,
-      step_offset: 0,
-      step_padding_prefix: SEPARATOR
-    ) if @step_field_backtracked
+    return unless @show_backtracked && should_log?(to_key)
+    emit(
+      text: "#{hl("backtracked")}#{from_lr ? " from lr" : ""} to :#{to_key}",
+      depth_offset: 0,
+      prefix: SEPARATOR
+    )
   end
 
   def log_halted_backtracking
-    highlight = @highlight_backtracked  # local copy state
-    _log_line(
-      [
-        highlight ? ANSI_HIGHLIGHT : "",
-        "halted backtracking, there are no more directives",
-        highlight ? ANSI_RESET : "",
-      ].join,
-      step_offset: 0,
-      step_padding_prefix: "└"
-    ) if @step_field_backtracked
+    return unless @show_backtracked && should_log?
+    emit(
+      text: hl("halted backtracking, there are no more directives"),
+      depth_offset: 0,
+      prefix: "└"
+    )
   end
 end
-
