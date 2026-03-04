@@ -14,7 +14,8 @@ module Merlin::ParserIgnores(IdentT, NodeT)
     current_ignores : Array(IdentT)?,
     group : Group(IdentT, NodeT)
   ) : Array(IdentT)
-    new_ignores = current_ignores.nil? ? [] of IdentT : current_ignores.dup
+    new_ignores = current_ignores.nil? ? 
+      Array(IdentT).new : current_ignores.dup
 
     # Apply inherited ignores
     unless (inherited_ignores = group.inherited_ignores).nil?
@@ -44,7 +45,8 @@ module Merlin::ParserIgnores(IdentT, NodeT)
     current_trailing_ignores : Array(IdentT)?,
     group : Group(IdentT, NodeT)
   ) : Array(IdentT)
-    new_trailing_ignores = current_trailing_ignores.nil? ? [] of IdentT : current_trailing_ignores.dup
+    new_trailing_ignores = current_trailing_ignores.nil? ? 
+      Array(IdentT).new : current_trailing_ignores.dup
 
     # Apply inherited trailing ignores
     unless (inherited_trailing_ignores = group.inherited_trailing_ignores).nil?

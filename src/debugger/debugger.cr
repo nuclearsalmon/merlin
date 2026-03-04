@@ -13,10 +13,10 @@ class Merlin::Debugger(IdentT, NodeT)
   property step_field_backtracked    = false
 
   # ansi highlights
-  property highlight_trying_group   = false
-  property highlight_failed         = false
+  property highlight_trying_group   = true
+  property highlight_failed         = true
   property highlight_matched        = true
-  property highlight_backtracked    = false
+  property highlight_backtracked    = true
 
   # filters
   property filter_stack_depth    = -1
@@ -26,7 +26,7 @@ class Merlin::Debugger(IdentT, NodeT)
   property filter_parent_group   = ""
 
   # actions
-  property show_steps        = false
+  property show_steps        = true
   property pad_steps         = true
   property fancy_padding     = true
   property show_tokenization = false

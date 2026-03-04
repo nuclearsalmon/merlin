@@ -2,7 +2,7 @@ module Merlin::Tokenizer(IdentT)
   def tokenize(
       str : String,
       filename : String? = nil) : Array(MatchedToken(IdentT))
-    tokens_found = Array(MatchedToken(IdentT)).new
+    tokens_found = Deque(MatchedToken(IdentT)).new
     row, col = 1, 1
 
     until str.empty?
@@ -40,6 +40,6 @@ module Merlin::Tokenizer(IdentT)
       end
     end
 
-    return tokens_found
+    return tokens_found.to_a
   end
 end

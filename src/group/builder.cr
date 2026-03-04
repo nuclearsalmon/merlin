@@ -101,7 +101,7 @@ module Merlin
     #end
 
     def noignore() : Nil
-      @noignores ||= Array(IdentT).new
+      @noignores ||= Deque(IdentT).new
     end
 
     private def check_token(pattern : IdentT) : Nil

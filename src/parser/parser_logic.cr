@@ -13,11 +13,14 @@ module Merlin::ParserLogic(IdentT, NodeT)
       group: @root,
       lr: false,
       current_ignores: initial_ignores,
-      current_trailing_ignores: initial_trailing_ignores
-    )
+      current_trailing_ignores: initial_trailing_ignores)
   end
 
-  def parse(@parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
+  def parse(parsing_tokens : Array(MatchedToken(IdentT))) : NodeT
+    parse(Deque.new(parsing_tokens))
+  end
+
+  def parse(@parsing_tokens : Deque(MatchedToken(IdentT))) : NodeT
     initialize_for_parsing
     result_node = do_parse
 
@@ -25,11 +28,13 @@ module Merlin::ParserLogic(IdentT, NodeT)
     raise Error::BadInput.new(
       "Parsing failed to match anything."
     ) if result_node.nil?
+
+    puts result_node.as(NodeT).to_s
     
     # verify that every token was consumed
     if @parsing_position < @parsing_tokens.size
       self.debugger.log_line([
-        "Got #{result_node.pretty_inspect}, but only matched ",
+        "Got result, but only matched ",
         "#{@parsing_position}/#{@parsing_tokens.size} tokens.",
       ].join)
       raise Error::UnexpectedCharacter.new(
@@ -156,8 +161,15 @@ module Merlin::ParserLogic(IdentT, NodeT)
       # cache the updated parent context
       store_in_cache(parent_directive)
 
-      create_lr_directive(parent_directive) unless next_token().nil?
-      false
+      if next_token().nil?
+        # At EOL: don't create another lr directive. Return true to continue the
+        # post_parse loop so the parent (state Matched, have_tried_lr) gets
+        # handled via the elsif branch and propagates the result up.
+        true
+      else
+        create_lr_directive(parent_directive)
+        false
+      end
     elsif directive.have_tried_lr?
       @parsing_queue.pop
       handle_parent_directive(directive, @parsing_queue[-1]?)
@@ -252,9 +264,8 @@ module Merlin::ParserLogic(IdentT, NodeT)
     if cached_context.nil?
       self.debugger.log_trying(target_ident)
 
-      if next_token.nil?
-        raise Exception.new("No more tokens to parse")
-      end
+      at_eol = next_token().nil?
+      raise Exception.new("No more tokens to parse") if at_eol
 
       # insert new directive
       new_ignores = compute_new_ignores(
@@ -272,7 +283,7 @@ module Merlin::ParserLogic(IdentT, NodeT)
         lr: false,
         current_ignores: new_ignores,
         current_trailing_ignores: new_trailing_ignores
-      ) unless next_token().nil?
+      ) unless at_eol
       # FIXME: the "unless" clause here is a performance hack to 
       # avoid creating a new directive if there are no more tokens.
       # This does seem to work but could have unforeseen side effects.

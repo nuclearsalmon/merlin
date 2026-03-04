@@ -17,8 +17,8 @@ class Merlin::Parser(IdentT, NodeT)
   # ---
 
   getter parsing_position : Int32 = 0
-  getter parsing_tokens = Array(MatchedToken(IdentT)).new
-  getter parsing_queue = Array(Directive(IdentT, NodeT)).new
+  getter parsing_tokens : Deque(MatchedToken(IdentT)) = Deque(MatchedToken(IdentT)).new
+  getter parsing_queue = Deque(Directive(IdentT, NodeT)).new
   getter cache = Cache(IdentT, NodeT).new
 
   def initialize(

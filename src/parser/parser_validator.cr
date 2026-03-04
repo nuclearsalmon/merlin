@@ -31,7 +31,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
   private def inexplicit_recursive_reference?(
       to_group : IdentT,
       from_group : IdentT) : Bool
-    pending_detection = Array(IdentT).new
+    pending_detection = Deque(IdentT).new
     pending_detection << to_group
 
     iterations = 0
@@ -86,7 +86,7 @@ module Merlin::ParserValidator(IdentT, NodeT)
       @groups.map { |_, group| group }.tap(&.<< @root)
 
     groups.each { |group|
-      syms = Array(IdentT).new
+      syms = Deque(IdentT).new
 
       rules = group.rules.dup.concat(group.lr_rules)
       rules.each { |rule|

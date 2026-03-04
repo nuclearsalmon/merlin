@@ -4,14 +4,14 @@ require "./querying"
 class Merlin::Context(IdentT, NodeT)
   property name : IdentT
 
-  @nodes : Array(NodeT)?
-  @tokens : Array(MatchedToken(IdentT))?
+  @nodes : Deque(NodeT)?
+  @tokens : Deque(MatchedToken(IdentT))?
   @sub_contexts : Hash(IdentT, Context(IdentT, NodeT))?
 
   def initialize(
       @name : IdentT,
-      @nodes : Array(NodeT)? = nil,
-      @tokens : Array(MatchedToken(IdentT))? = nil,
+      @nodes : Deque(NodeT)? = nil,
+      @tokens : Deque(MatchedToken(IdentT))? = nil,
       @sub_contexts : Hash(IdentT, Context(IdentT, NodeT))? = nil)
   end
 

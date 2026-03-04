@@ -34,7 +34,7 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def nodes? : Array(NodeT)?
-    @nodes.try(&.dup)
+    @nodes.try(&.to_a)
   end
 
   def nodes : Array(NodeT)

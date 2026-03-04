@@ -85,7 +85,7 @@ class Merlin::Context(IdentT, NodeT)
       token = tokens.delete_at(0)
       sub_context = Context(IdentT, NodeT).new(
         name: key,
-        tokens: [token])
+        tokens: Deque(MatchedToken(IdentT)).new(initial_capacity: 1).tap &.push(token))
       add(key, sub_context, clone: false)
     else
       nodes = @nodes
@@ -94,7 +94,7 @@ class Merlin::Context(IdentT, NodeT)
       node = nodes.delete_at(0)
       sub_context = Context(IdentT, NodeT).new(
         name: key,
-        nodes: [node])
+        nodes: Util.single_deque(NodeT, node))
       add(key, sub_context, clone: false)
     end
   end
@@ -154,19 +154,19 @@ class Merlin::Context(IdentT, NodeT)
   end
 
   def add(value : NodeT) : Nil
-    (@nodes ||= Array(NodeT).new) << value
+    (@nodes ||= Deque(NodeT).new) << value
   end
 
   def add(values : Array(NodeT)) : Nil
-    (@nodes ||= Array(NodeT).new).concat(values)
+    (@nodes ||= Deque(NodeT).new).concat(values)
   end
 
   def add(value : MatchedToken(IdentT)) : Nil
-    (@tokens ||= Array(MatchedToken(IdentT)).new) << value
+    (@tokens ||= Deque(MatchedToken(IdentT)).new) << value
   end
 
   def add(values : Array(MatchedToken(IdentT))) : Nil
-    (@tokens ||= Array(MatchedToken(IdentT)).new).concat(values)
+    (@tokens ||= Deque(MatchedToken(IdentT)).new).concat(values)
   end
 
   def add(
